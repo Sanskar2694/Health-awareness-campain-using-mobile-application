@@ -1,31 +1,11 @@
-from kivy.app import App
-from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.label import Label
-from kivy.uix.button import Button
-from kivy.uix.scrollview import ScrollView
+import streamlit as st
 
 
-class HealthAwarenessApp(App):
+class HealthAwarenessApp:
 
-    def build(self):
+    def __init__(self):
 
-        layout = BoxLayout(
-            orientation="vertical",
-            padding=20,
-            spacing=15
-        )
-
-        title = Label(
-            text="HEALTH AWARENESS CAMPAIGN",
-            font_size=24,
-            bold=True,
-            size_hint_y=None,
-            height=60
-        )
-
-        layout.add_widget(title)
-
-        health_topics = [
+        self.health_topics = [
             "Healthy Diet",
             "Exercise & Fitness",
             "Mental Health",
@@ -35,27 +15,7 @@ class HealthAwarenessApp(App):
             "Emergency Information"
         ]
 
-        for topic in health_topics:
-
-            button = Button(
-                text=topic,
-                font_size=18,
-                size_hint_y=None,
-                height=55
-            )
-
-            button.bind(
-                on_press=lambda x, t=topic:
-                self.show_information(t)
-            )
-
-            layout.add_widget(button)
-
-        return layout
-
-    def show_information(self, topic):
-
-        information = {
+        self.information = {
             "Healthy Diet":
                 "Eat fruits, vegetables, whole grains and "
                 "other nutritious foods.",
@@ -85,47 +45,55 @@ class HealthAwarenessApp(App):
                 "emergency medical service."
         }
 
-        self.root.clear_widgets()
+    def build(self):
 
-        layout = BoxLayout(
-            orientation="vertical",
-            padding=20,
-            spacing=20
+        st.title("HEALTH AWARENESS CAMPAIGN")
+
+        for topic in self.health_topics:
+
+            if st.button(topic, use_container_width=True):
+
+                st.session_state["topic"] = topic
+
+                st.rerun()
+
+    def show_information(self, topic):
+
+        st.title(topic)
+
+        st.write(
+            self.information.get(topic, "")
         )
 
-        layout.add_widget(
-            Label(
-                text=topic,
-                font_size=26,
-                bold=True
+        if st.button("← Back", use_container_width=True):
+
+            st.session_state["topic"] = None
+
+            st.rerun()
+
+    def run(self):
+
+        if "topic" not in st.session_state:
+
+            st.session_state["topic"] = None
+
+        if st.session_state["topic"] is None:
+
+            self.build()
+
+        else:
+
+            self.show_information(
+                st.session_state["topic"]
             )
-        )
-
-        layout.add_widget(
-            Label(
-                text=information.get(topic, "")
-            )
-        )
-
-        back = Button(
-            text="← Back",
-            size_hint_y=None,
-            height=55
-        )
-
-        back.bind(
-            on_press=lambda x: self.build_home()
-        )
-
-        layout.add_widget(back)
-
-        self.root.add_widget(layout)
-
-    def build_home(self):
-
-        self.root.clear_widgets()
-        self.root.add_widget(self.build())
 
 
 if __name__ == "__main__":
-    HealthAwarenessApp().run()
+
+    st.set_page_config(
+        page_title="Health Awareness Campaign"
+    )
+
+    app = HealthAwarenessApp()
+
+    app.run()
