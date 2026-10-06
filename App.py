@@ -53,40 +53,166 @@ h1,h2,h3,h4,h5,h6,
   color:var(--muted) !important;
 }
 
-/* Sidebar - modeled after the original HTML app */
-section[data-testid="stSidebar"]{
+/* Sidebar - high-contrast, original-app-inspired design */
+section[data-testid="stSidebar"],
+section[data-testid="stSidebar"] > div,
+section[data-testid="stSidebar"] [data-testid="stSidebarContent"]{
   background:#123F3E !important;
-  border-right:1px solid #0A2E2D !important;
+  color:#FFFFFF !important;
+  border-right:1px solid #082F2E !important;
 }
-section[data-testid="stSidebar"] > div{
-  background:#123F3E !important;
-}
+
 section[data-testid="stSidebar"] *{
-  color:#F3FAF8 !important;
+  color:#F7FFFD !important;
 }
+
 section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
-section[data-testid="stSidebar"] [data-testid="stCaptionContainer"] *{
-  color:#C9E1DC !important;
+section[data-testid="stSidebar"] [data-testid="stCaptionContainer"] *,
+section[data-testid="stSidebar"] small{
+  color:#D9EFEB !important;
+  opacity:1 !important;
 }
+
 section[data-testid="stSidebar"] hr{
-  border-color:rgba(255,255,255,.22) !important;
+  border-color:rgba(255,255,255,.25) !important;
 }
-section[data-testid="stSidebar"] .stButton{
-  margin:5px 0 !important;
+
+/* Sidebar navigation buttons: force the text of every nested element */
+section[data-testid="stSidebar"] [data-testid="stButton"]{
+  margin:6px 0 !important;
 }
-section[data-testid="stSidebar"] .stButton > button{
-  min-height:44px !important;
+
+section[data-testid="stSidebar"] [data-testid="stButton"] button,
+section[data-testid="stSidebar"] [data-testid="stButton"] button:enabled{
+  width:100% !important;
+  min-height:46px !important;
+  padding:0 14px !important;
+  background:#FFFFFF !important;
+  background-color:#FFFFFF !important;
+  color:#173B3A !important;
+  -webkit-text-fill-color:#173B3A !important;
+  border:1px solid #D2E1DD !important;
+  border-radius:12px !important;
+  opacity:1 !important;
+  box-shadow:none !important;
+  font-family:'DM Sans',sans-serif !important;
+  font-size:14px !important;
+  font-weight:700 !important;
+}
+
+section[data-testid="stSidebar"] [data-testid="stButton"] button *,
+section[data-testid="stSidebar"] [data-testid="stButton"] button p,
+section[data-testid="stSidebar"] [data-testid="stButton"] button span,
+section[data-testid="stSidebar"] [data-testid="stButton"] button div{
+  color:#173B3A !important;
+  -webkit-text-fill-color:#173B3A !important;
+  opacity:1 !important;
+  font-weight:700 !important;
+}
+
+section[data-testid="stSidebar"] [data-testid="stButton"] button:hover{
+  background:#E8F4F1 !important;
+  background-color:#E8F4F1 !important;
+  color:#0C514D !important;
+  border-color:#8BB9B0 !important;
+}
+
+section[data-testid="stSidebar"] [data-testid="stButton"] button:hover *{
+  color:#0C514D !important;
+  -webkit-text-fill-color:#0C514D !important;
+}
+
+/* Sidebar identity/user line */
+section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"]{
+  color:#FFFFFF !important;
+}
+section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] h1,
+section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] h2,
+section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] h3{
+  color:#FFFFFF !important;
+}
+
+/* Main page text */
+[data-testid="stAppViewContainer"],
+[data-testid="stMain"]{
+  background:#F3F6F5 !important;
+}
+
+[data-testid="stMain"] [data-testid="stMarkdownContainer"] p,
+[data-testid="stMain"] [data-testid="stMarkdownContainer"] li,
+[data-testid="stMain"] label{
+  color:#294744 !important;
+  opacity:1 !important;
+}
+
+/* Login fields - strong contrast */
+[data-testid="stTextInput"] input,
+[data-testid="stTextInput"] input:focus,
+[data-testid="stNumberInput"] input,
+[data-testid="stNumberInput"] input:focus,
+[data-baseweb="input"] input,
+[data-baseweb="input"] input:focus{
   background:#FFFFFF !important;
   color:#173B3A !important;
-  border:1px solid #D5E3DF !important;
-  border-radius:12px !important;
-  font-weight:600 !important;
+  -webkit-text-fill-color:#173B3A !important;
+  caret-color:#173B3A !important;
+  opacity:1 !important;
+  border:1px solid #9FB8B2 !important;
   box-shadow:none !important;
 }
-section[data-testid="stSidebar"] .stButton > button:hover{
-  background:#EAF3F0 !important;
-  color:#0F5F5A !important;
-  border-color:#9CC8BE !important;
+
+[data-testid="stTextInput"] input::placeholder,
+[data-baseweb="input"] input::placeholder{
+  color:#6F817D !important;
+  -webkit-text-fill-color:#6F817D !important;
+  opacity:1 !important;
+}
+
+/* Primary Sign In and every other Streamlit primary button */
+[data-testid="stButton"] button[kind="primary"],
+[data-testid="stButton"] button[data-testid="baseButton-primary"],
+[data-testid="stButton"] button[kind="primary"]:enabled{
+  background:#0F6B66 !important;
+  background-color:#0F6B66 !important;
+  color:#FFFFFF !important;
+  -webkit-text-fill-color:#FFFFFF !important;
+  border:1px solid #0F6B66 !important;
+  opacity:1 !important;
+  font-weight:800 !important;
+}
+
+[data-testid="stButton"] button[kind="primary"] *,
+[data-testid="stButton"] button[data-testid="baseButton-primary"] *,
+[data-testid="stButton"] button[kind="primary"] p,
+[data-testid="stButton"] button[kind="primary"] span,
+[data-testid="stButton"] button[kind="primary"] div{
+  color:#FFFFFF !important;
+  -webkit-text-fill-color:#FFFFFF !important;
+  opacity:1 !important;
+  font-weight:800 !important;
+}
+
+[data-testid="stButton"] button:not([kind="primary"]){
+  color:#173B3A !important;
+  -webkit-text-fill-color:#173B3A !important;
+  background:#FFFFFF !important;
+  opacity:1 !important;
+}
+
+[data-testid="stButton"] button:not([kind="primary"]) *{
+  color:#173B3A !important;
+  -webkit-text-fill-color:#173B3A !important;
+  opacity:1 !important;
+}
+
+/* Login labels and radio options */
+[data-testid="stTextInput"] label,
+[data-testid="stRadio"] label,
+[data-testid="stRadio"] p{
+  color:#173B3A !important;
+  -webkit-text-fill-color:#173B3A !important;
+  opacity:1 !important;
+  font-weight:600 !important;
 }
 
 /* Login / hero */
@@ -148,79 +274,10 @@ div[data-testid="stMetric"] *{
   color:#58706C !important;
 }
 
-/* Inputs - explicit text/background contrast */
-.stTextInput label,.stNumberInput label,.stSelectbox label,.stRadio label,.stSlider label{
-  color:var(--ink) !important;
-  font-weight:600 !important;
-}
-.stTextInput input,.stNumberInput input,
-[data-baseweb="input"] input,
-[data-baseweb="textarea"] textarea{
-  background:#FFFFFF !important;
-  color:#173B3A !important;
-  -webkit-text-fill-color:#173B3A !important;
-  border:1px solid #BFCFCA !important;
-  border-radius:10px !important;
-}
-.stTextInput input::placeholder,.stNumberInput input::placeholder,
-[data-baseweb="input"] input::placeholder{
-  color:#82918E !important;
-  -webkit-text-fill-color:#82918E !important;
-  opacity:1 !important;
-}
-[data-baseweb="select"] > div{
-  background:#FFFFFF !important;
-  color:#173B3A !important;
-  border-color:#BFCFCA !important;
-}
-[data-baseweb="select"] *{
-  color:#173B3A !important;
-}
-[data-baseweb="popover"], [data-baseweb="menu"]{
-  background:#FFFFFF !important;
-}
-[data-baseweb="popover"] *, [data-baseweb="menu"] *{
-  color:#173B3A !important;
-}
-
 /* Radio / checkbox */
 [data-testid="stRadio"] label,
 [data-testid="stCheckbox"] label{
   color:#294744 !important;
-}
-
-/* Buttons - especially the primary button seen in the screenshot */
-.stButton > button{
-  background:#FFFFFF !important;
-  color:#173B3A !important;
-  border:1px solid #B9CCC7 !important;
-  border-radius:11px !important;
-  font-weight:700 !important;
-  min-height:42px !important;
-  box-shadow:none !important;
-}
-.stButton > button:hover{
-  background:#EDF5F2 !important;
-  color:#0F5F5A !important;
-  border-color:#7FB4AA !important;
-}
-.stButton > button[kind="primary"],
-.stButton > button[data-testid="baseButton-primary"]{
-  background:#0F6B66 !important;
-  color:#FFFFFF !important;
-  -webkit-text-fill-color:#FFFFFF !important;
-  border:1px solid #0F6B66 !important;
-  font-weight:800 !important;
-}
-.stButton > button[kind="primary"] *,
-.stButton > button[data-testid="baseButton-primary"] *{
-  color:#FFFFFF !important;
-  -webkit-text-fill-color:#FFFFFF !important;
-}
-.stButton > button[kind="primary"]:hover,
-.stButton > button[data-testid="baseButton-primary"]:hover{
-  background:#0A504D !important;
-  color:#FFFFFF !important;
 }
 
 /* Cards used for tracker */
