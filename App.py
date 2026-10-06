@@ -7,7 +7,38 @@ st.set_page_config(page_title='HealthWise Connect', page_icon='🩺', layout='wi
 st.markdown('''<style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:wght@600;700&display=swap');
 :root{--ink:#0F3D3E;--soft:#3C6B65;--paper:#F4FBF8;--card:#fff;--gold:#E8A33D;--mint:#DCEFE8;--line:#D7E7E1;--muted:#6B8783}
-html,body,[class*="css"]{font-family:'DM Sans',sans-serif}.stApp{background:radial-gradient(circle at 5% 5%,rgba(220,239,232,.85),transparent 25%),radial-gradient(circle at 95% 90%,rgba(232,163,61,.12),transparent 25%),#eef5f2}.block-container{max-width:1250px;padding-top:1.5rem}h1,h2,h3{color:var(--ink);font-family:'Fraunces',serif!important}[data-testid="stSidebar"]{background:linear-gradient(180deg,#0F3D3E,#124c4b)}[data-testid="stSidebar"] *{color:#effbf6!important}div[data-testid="stMetric"]{background:#fff;border:1px solid var(--line);border-radius:18px;padding:16px;box-shadow:0 8px 25px rgba(15,61,62,.06)}.card{background:rgba(255,255,255,.94);border:1px solid var(--line);border-radius:20px;padding:20px;margin-bottom:16px;box-shadow:0 10px 30px rgba(15,61,62,.06)}.hero{background:linear-gradient(135deg,#0F3D3E,#24736b);color:#fff;border-radius:24px;padding:28px;box-shadow:0 18px 45px rgba(15,61,62,.2)}.hero h1,.hero p{color:#fff!important}.badge{display:inline-block;background:#e8f5f0;color:#0F3D3E;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:700}.step-card{background:linear-gradient(135deg,#DCEFE8,#fff);border:1px solid var(--line);border-radius:22px;padding:24px}.water-card{background:linear-gradient(135deg,#e8f6ff,#fff);border:1px solid #cfe5f0;border-radius:22px;padding:22px}.small{color:var(--muted);font-size:13px}.big-number{font-size:42px;font-weight:800;color:var(--ink);line-height:1}.progress-wrap{height:10px;background:#e7efec;border-radius:20px;overflow:hidden}.progress-fill{height:100%;background:linear-gradient(90deg,#E8A33D,#f2c36e);border-radius:20px}.reminder{background:#fff7e8;border:1px solid #f1d49e;border-radius:14px;padding:12px 15px;color:#68430d}.danger{background:#fff1ed;border:1px solid #f0cfc3;border-radius:14px;padding:14px}
+html,body,[class*="css"]{font-family:'DM Sans',sans-serif;color:#173B3A!important}
+.stApp{background:radial-gradient(circle at 5% 5%,rgba(220,239,232,.85),transparent 25%),radial-gradient(circle at 95% 90%,rgba(232,163,61,.12),transparent 25%),#eef5f2}
+.block-container{max-width:1250px;padding-top:1.5rem}
+h1,h2,h3,h4,h5,h6{color:var(--ink)!important;font-family:'Fraunces',serif!important}
+p,span,label,div{color:#173B3A}
+[data-testid="stMarkdownContainer"] p,[data-testid="stMarkdownContainer"] li{color:#173B3A!important}
+[data-testid="stWidgetLabel"] p,[data-testid="stWidgetLabel"] label{color:#173B3A!important;font-weight:600}
+[data-testid="stTextInput"] input,[data-testid="stNumberInput"] input{color:#173B3A!important;background:#fff!important}
+[data-baseweb="select"] *{color:#173B3A!important}
+[data-baseweb="radio"] label,[data-baseweb="checkbox"] label{color:#173B3A!important}
+.stSelectbox label,.stNumberInput label,.stTextInput label,.stSlider label,.stRadio label{color:#173B3A!important}
+[data-testid="stSidebar"]{background:linear-gradient(180deg,#0F3D3E,#124c4b)}
+[data-testid="stSidebar"] *{color:#effbf6!important}
+div[data-testid="stMetric"]{background:#fff;border:1px solid var(--line);border-radius:18px;padding:16px;box-shadow:0 8px 25px rgba(15,61,62,.06)}
+[data-testid="stMetricLabel"],[data-testid="stMetricValue"],[data-testid="stMetricDelta"]{color:#173B3A!important}
+.card{background:rgba(255,255,255,.94);border:1px solid var(--line);border-radius:20px;padding:20px;margin-bottom:16px;box-shadow:0 10px 30px rgba(15,61,62,.06)}
+.card h3,.card p{color:#173B3A!important}
+.hero{background:linear-gradient(135deg,#0F3D3E,#24736b);color:#fff;border-radius:24px;padding:28px;box-shadow:0 18px 45px rgba(15,61,62,.2)}
+.hero h1,.hero p,.hero span{color:#fff!important}
+.badge{display:inline-block;background:#e8f5f0;color:#0F3D3E!important;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:700}
+.step-card{background:linear-gradient(135deg,#DCEFE8,#fff);border:1px solid var(--line);border-radius:22px;padding:24px}
+.water-card{background:linear-gradient(135deg,#e8f6ff,#fff);border:1px solid #cfe5f0;border-radius:22px;padding:22px}
+.small{color:#55736F!important;font-size:13px}
+.big-number{font-size:42px;font-weight:800;color:var(--ink)!important;line-height:1}
+.progress-wrap{height:10px;background:#e7efec;border-radius:20px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,#E8A33D,#f2c36e);border-radius:20px}
+.reminder{background:#fff7e8;border:1px solid #f1d49e;border-radius:14px;padding:12px 15px;color:#68430d!important}
+.danger{background:#fff1ed;border:1px solid #f0cfc3;border-radius:14px;padding:14px;color:#5b2b20!important}
+.stButton button{color:#173B3A!important;background:#fff!important;border:1px solid #BFD8D1!important}
+.stButton button[kind="primary"]{color:#fff!important;background:#0F6B66!important;border-color:#0F6B66!important}
+.stCaption,.stCaption p{color:#55736F!important}
+
 </style>''', unsafe_allow_html=True)
 
 def init(k,v):
