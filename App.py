@@ -341,7 +341,7 @@ hr{border-color:#D4E0DD !important;}
 </style>''', unsafe_allow_html=True)
 
 
-<style>
+st.markdown('''<style>
 /* ===== Accessibility / High Contrast Layer ===== */
 html, body, [class*="css"] {
     color: #163B39 !important;
@@ -698,7 +698,7 @@ input:disabled {
         font-size: 14px !important;
     }
 }
-</style>
+</style>''', unsafe_allow_html=True)
 
 def init(k,v):
     if k not in st.session_state: st.session_state[k]=v
