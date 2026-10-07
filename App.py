@@ -1,6 +1,12 @@
 import streamlit as st
 from datetime import datetime, date
 import math
+from urllib.parse import quote_plus
+
+try:
+    from streamlit_gps_location import gps_location_button
+except ImportError:
+    gps_location_button = None
 
 st.set_page_config(page_title='HealthWise Connect', page_icon='🩺', layout='wide')
 
@@ -334,6 +340,366 @@ hr{border-color:#D4E0DD !important;}
 }
 </style>''', unsafe_allow_html=True)
 
+
+<style>
+/* ===== Accessibility / High Contrast Layer ===== */
+html, body, [class*="css"] {
+    color: #163B39 !important;
+}
+
+.stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
+    background: #F4F7F6 !important;
+}
+
+/* Main text */
+[data-testid="stMain"] p,
+[data-testid="stMain"] li,
+[data-testid="stMain"] label,
+[data-testid="stMain"] span,
+[data-testid="stMain"] div {
+    color: #173D3A;
+}
+
+/* Headings */
+[data-testid="stMain"] h1,
+[data-testid="stMain"] h2,
+[data-testid="stMain"] h3,
+[data-testid="stMain"] h4,
+[data-testid="stMain"] h5,
+[data-testid="stMain"] h6 {
+    color: #083F3C !important;
+    opacity: 1 !important;
+}
+
+/* Text inputs / number inputs / password inputs */
+[data-testid="stTextInput"] input,
+[data-testid="stNumberInput"] input,
+[data-baseweb="input"] input,
+[data-baseweb="textarea"] textarea,
+textarea {
+    background: #FFFFFF !important;
+    color: #102F2D !important;
+    -webkit-text-fill-color: #102F2D !important;
+    border: 2px solid #73958F !important;
+    border-radius: 10px !important;
+    opacity: 1 !important;
+}
+
+[data-testid="stTextInput"] input:focus,
+[data-testid="stNumberInput"] input:focus,
+[data-baseweb="input"] input:focus,
+textarea:focus {
+    border: 2px solid #075E59 !important;
+    box-shadow: 0 0 0 2px rgba(7,94,89,.16) !important;
+}
+
+[data-testid="stTextInput"] input::placeholder,
+[data-testid="stNumberInput"] input::placeholder,
+[data-baseweb="input"] input::placeholder,
+textarea::placeholder {
+    color: #5B6F6B !important;
+    -webkit-text-fill-color: #5B6F6B !important;
+    opacity: 1 !important;
+}
+
+/* Select boxes */
+[data-baseweb="select"] > div {
+    background: #FFFFFF !important;
+    color: #102F2D !important;
+    border: 2px solid #73958F !important;
+    opacity: 1 !important;
+}
+
+[data-baseweb="select"] span {
+    color: #102F2D !important;
+    -webkit-text-fill-color: #102F2D !important;
+}
+
+/* Dropdown popup */
+[data-baseweb="popover"],
+[data-baseweb="menu"],
+[role="listbox"] {
+    background: #FFFFFF !important;
+}
+
+[role="option"] {
+    color: #102F2D !important;
+    background: #FFFFFF !important;
+}
+
+[role="option"]:hover {
+    background: #E5F1EE !important;
+    color: #073F3C !important;
+}
+
+/* Buttons */
+[data-testid="stButton"] button,
+[data-testid="stLinkButton"] a {
+    background: #FFFFFF !important;
+    color: #123B39 !important;
+    -webkit-text-fill-color: #123B39 !important;
+    border: 2px solid #4D7D77 !important;
+    border-radius: 11px !important;
+    font-weight: 800 !important;
+    opacity: 1 !important;
+    min-height: 42px !important;
+}
+
+[data-testid="stButton"] button:hover,
+[data-testid="stLinkButton"] a:hover {
+    background: #E4F1EE !important;
+    color: #063F3B !important;
+    border-color: #075E59 !important;
+}
+
+[data-testid="stButton"] button[kind="primary"],
+[data-testid="stButton"] button[data-testid="baseButton-primary"] {
+    background: #075E59 !important;
+    color: #FFFFFF !important;
+    -webkit-text-fill-color: #FFFFFF !important;
+    border: 2px solid #064B47 !important;
+}
+
+[data-testid="stButton"] button[kind="primary"] *,
+[data-testid="stButton"] button[data-testid="baseButton-primary"] * {
+    color: #FFFFFF !important;
+    -webkit-text-fill-color: #FFFFFF !important;
+}
+
+/* Radio / checkbox / slider labels */
+[data-testid="stRadio"] label,
+[data-testid="stRadio"] p,
+[data-testid="stCheckbox"] label,
+[data-testid="stCheckbox"] p,
+[data-testid="stSlider"] label,
+[data-testid="stSlider"] p {
+    color: #173D3A !important;
+    opacity: 1 !important;
+    font-weight: 700 !important;
+}
+
+/* Captions */
+[data-testid="stCaptionContainer"],
+[data-testid="stCaptionContainer"] *,
+.stCaption,
+.stCaption * {
+    color: #4F6763 !important;
+    opacity: 1 !important;
+}
+
+/* Alerts */
+[data-testid="stAlert"] {
+    background: #FFFFFF !important;
+    border: 2px solid #73958F !important;
+    color: #173D3A !important;
+    opacity: 1 !important;
+}
+
+[data-testid="stAlert"] *,
+[data-testid="stAlert"] p,
+[data-testid="stAlert"] span {
+    color: #173D3A !important;
+    opacity: 1 !important;
+}
+
+/* Success */
+[data-testid="stAlert"][kind="success"] {
+    background: #E8F5EF !important;
+    border-color: #4B9276 !important;
+}
+
+/* Info */
+[data-testid="stAlert"][kind="info"] {
+    background: #E8F2F7 !important;
+    border-color: #56849A !important;
+}
+
+/* Warning */
+[data-testid="stAlert"][kind="warning"] {
+    background: #FFF5DF !important;
+    border-color: #B77A18 !important;
+}
+
+/* Error */
+[data-testid="stAlert"][kind="error"] {
+    background: #FFF0EC !important;
+    border-color: #B94A35 !important;
+}
+
+/* Metrics */
+div[data-testid="stMetric"] {
+    background: #FFFFFF !important;
+    border: 2px solid #C4D6D2 !important;
+    border-radius: 16px !important;
+    box-shadow: 0 5px 16px rgba(18,63,62,.08) !important;
+}
+
+div[data-testid="stMetric"] *,
+[data-testid="stMetricLabel"],
+[data-testid="stMetricValue"],
+[data-testid="stMetricDelta"] {
+    color: #083F3C !important;
+    opacity: 1 !important;
+}
+
+/* Cards */
+.card,
+.step-card,
+.water-card {
+    color: #173D3A !important;
+}
+
+.card *,
+.step-card *,
+.water-card * {
+    color: #173D3A !important;
+    opacity: 1 !important;
+}
+
+.card h3 {
+    color: #083F3C !important;
+}
+
+.small {
+    color: #4F6763 !important;
+}
+
+/* Reminder and emergency boxes */
+.reminder {
+    background: #FFF5DF !important;
+    border: 2px solid #C69236 !important;
+    color: #563A0B !important;
+}
+
+.reminder *,
+.danger *,
+.danger {
+    color: #5C2921 !important;
+}
+
+.danger {
+    background: #FFF0EC !important;
+    border: 2px solid #C46A54 !important;
+}
+
+/* Chat */
+[data-testid="stChatMessage"] {
+    background: #FFFFFF !important;
+    border: 2px solid #C4D6D2 !important;
+}
+
+[data-testid="stChatMessage"] *,
+[data-testid="stChatMessage"] p {
+    color: #173D3A !important;
+}
+
+[data-testid="stChatInput"] textarea {
+    background: #FFFFFF !important;
+    color: #102F2D !important;
+    -webkit-text-fill-color: #102F2D !important;
+    border: 2px solid #73958F !important;
+}
+
+/* Sidebar */
+section[data-testid="stSidebar"],
+section[data-testid="stSidebar"] > div,
+section[data-testid="stSidebar"] [data-testid="stSidebarContent"] {
+    background: #0A3836 !important;
+}
+
+section[data-testid="stSidebar"] * {
+    color: #FFFFFF !important;
+    opacity: 1 !important;
+}
+
+section[data-testid="stSidebar"] .stCaption,
+section[data-testid="stSidebar"] .stCaption * {
+    color: #DDF3EF !important;
+}
+
+section[data-testid="stSidebar"] [data-testid="stButton"] button {
+    background: #FFFFFF !important;
+    color: #123B39 !important;
+    -webkit-text-fill-color: #123B39 !important;
+    border: 2px solid #C5DDD8 !important;
+}
+
+section[data-testid="stSidebar"] [data-testid="stButton"] button * {
+    color: #123B39 !important;
+    -webkit-text-fill-color: #123B39 !important;
+}
+
+section[data-testid="stSidebar"] [data-testid="stButton"] button:hover {
+    background: #E3F1EE !important;
+    border-color: #FFFFFF !important;
+}
+
+section[data-testid="stSidebar"] hr {
+    border-color: rgba(255,255,255,.35) !important;
+}
+
+/* Hero */
+.hero {
+    color: #FFFFFF !important;
+}
+
+.hero * {
+    color: #FFFFFF !important;
+    opacity: 1 !important;
+}
+
+.hero .badge {
+    background: #E7F3F0 !important;
+    color: #0B4844 !important;
+}
+
+/* Badges */
+.badge {
+    color: #0B4844 !important;
+    background: #E7F3F0 !important;
+    opacity: 1 !important;
+}
+
+/* Links */
+a {
+    color: #075E59 !important;
+    font-weight: 700 !important;
+}
+
+/* Expander */
+[data-testid="stExpander"] {
+    background: #FFFFFF !important;
+    border: 2px solid #C4D6D2 !important;
+}
+
+[data-testid="stExpander"] summary,
+[data-testid="stExpander"] summary * {
+    color: #173D3A !important;
+}
+
+/* Dividers */
+hr {
+    border-color: #C4D6D2 !important;
+}
+
+/* Make disabled-looking controls readable too */
+button:disabled,
+input:disabled {
+    opacity: .65 !important;
+    color: #536966 !important;
+    -webkit-text-fill-color: #536966 !important;
+}
+
+/* Mobile */
+@media (max-width:768px) {
+    [data-testid="stMain"] p,
+    [data-testid="stMain"] li,
+    [data-testid="stMain"] label {
+        font-size: 14px !important;
+    }
+}
+</style>
+
 def init(k,v):
     if k not in st.session_state: st.session_state[k]=v
 for k,v in {'logged_in':False,'email':'','role':'guest','page':'Home','steps':0,'steps_date':str(date.today()),'water':0,'water_date':str(date.today()),'water_goal':8,'water_interval':60,'last_water':None,'exercise':0,'sleep':0,'mood':3,'checkup':None,'score':None,'surveys':[],'camp_reports':[],'chat':[]}.items(): init(k,v)
@@ -362,15 +728,36 @@ with st.sidebar:
 
 if not st.session_state.logged_in:
     st.markdown('''<div class="hero"><span class="badge">HEALTHWISE CONNECT</span><h1 style="font-size:42px;margin-top:14px">A healthier community starts with awareness.</h1><p style="font-size:17px">Track daily habits, check basic health values, learn, and keep your wellness routine in one place.</p></div>''',unsafe_allow_html=True)
-    st.markdown('### Sign in');a,b=st.columns(2);email=a.text_input('Email',placeholder='you@example.com');password=b.text_input('Password',type='password');role=st.radio('Account type',['Public User','Admin'],horizontal=True)
-    if st.button('🔐 Sign In',type='primary',use_container_width=True):
+    st.markdown('### 👤 Guest Login')
+    st.info('You can use HealthWise Connect as a guest. No Gmail or email address is required.')
+    if st.button('🚀 Continue as Guest — No Email Required',type='primary',use_container_width=True):
+        st.session_state.logged_in=True
+        st.session_state.role='guest'
+        st.session_state.email='Guest'
+        nav('Home')
+
+    st.markdown('### 🔐 Sign in with an account')
+    a,b=st.columns(2)
+    email=a.text_input('Email',placeholder='you@example.com')
+    password=b.text_input('Password',type='password')
+    role=st.radio('Account type',['Public User','Admin'],horizontal=True)
+    if st.button('🔐 Sign In',use_container_width=True):
         if role=='Admin':
-            if email.lower()=='admin@health.org' and password=='admin123':st.session_state.logged_in=True;st.session_state.role='admin';st.session_state.email=email;nav('Home')
-            else:st.error('Invalid admin credentials. Demo: admin@health.org / admin123')
-        elif email.strip():st.session_state.logged_in=True;st.session_state.role='public';st.session_state.email=email.strip();nav('Home')
-        else:st.warning('Please enter your email.')
+            if email.lower()=='admin@health.org' and password=='admin123':
+                st.session_state.logged_in=True
+                st.session_state.role='admin'
+                st.session_state.email=email
+                nav('Home')
+            else:
+                st.error('Invalid admin credentials. Demo: admin@health.org / admin123')
+        elif email.strip():
+            st.session_state.logged_in=True
+            st.session_state.role='public'
+            st.session_state.email=email.strip()
+            nav('Home')
+        else:
+            st.warning('Please enter your email.')
     st.caption('Demo admin: admin@health.org / admin123')
-    if st.button('Continue as Guest',use_container_width=True): st.session_state.email='Guest';nav('Home')
     st.stop()
 
 p=st.session_state.page
@@ -423,7 +810,67 @@ elif p=='Health Camp':
     st.title('🏥 Health Camp Mode');name=st.text_input('Participant name');age=st.number_input('Age',1,120,42);height=st.number_input('Height (cm)',50.,250.,165.);weight=st.number_input('Weight (kg)',10.,300.,70.);sys=st.number_input('BP systolic',50,250,120);dia=st.number_input('BP diastolic',30,150,80);sugar=st.number_input('Blood sugar',20,600,110);pulse=st.number_input('Pulse',30,220,75)
     if st.button('Generate Camp Report',type='primary'):st.json({'name':name or 'Participant','age':age,'bmi':round(weight/((height/100)**2),1),'bp':f'{sys}/{dia}','sugar':sugar,'pulse':pulse,'date':today})
 elif p=='Emergency':
-    st.title('🚨 Emergency & Care');st.markdown('<div class="danger"><b>If this is an emergency, contact local emergency services immediately.</b><br>India: 112 emergency • 108 ambulance</div>',unsafe_allow_html=True);st.write('📞 112 — National Emergency');st.write('🚑 108 — Ambulance / emergency medical response');st.info('The original app used demo hospital names/distances, not live hospital data. Use a verified local healthcare directory or Maps for current nearby facilities.')
+    st.title('🚨 Emergency & Care')
+    st.markdown(
+        '<div class="danger"><b>If this is an emergency, contact local emergency services immediately.</b><br>'
+        'India: 112 emergency • 108 ambulance</div>',
+        unsafe_allow_html=True
+    )
+
+    st.write('📞 **112 — National Emergency**')
+    st.write('🚑 **108 — Ambulance / emergency medical response**')
+
+    st.markdown('### 📍 Find Emergency Services Near You')
+    st.write('Turn on your device location to open nearby hospitals, fire brigades, police stations and pharmacies in Google Maps.')
+
+    if gps_location_button is None:
+        st.error('The GPS location package is not installed. Add `streamlit-gps-location` to requirements.txt and redeploy.')
+    else:
+        location = gps_location_button(buttonText='📍 Turn On Location')
+
+        if location and isinstance(location, dict):
+            # Support the common output shape of GPS location components.
+            lat = location.get('latitude', location.get('lat'))
+            lon = location.get('longitude', location.get('lon'))
+
+            if lat is not None and lon is not None:
+                try:
+                    lat = float(lat)
+                    lon = float(lon)
+
+                    st.success('📍 Location detected. Choose an emergency service below.')
+
+                    places = [
+                        ('🏥', 'Nearby Hospitals', 'hospital'),
+                        ('🚒', 'Nearby Fire Brigades', 'fire station'),
+                        ('👮', 'Nearby Police Stations', 'police station'),
+                        ('💊', 'Nearby Pharmacies', 'pharmacy'),
+                        ('🚑', 'Nearby Ambulance Services', 'ambulance service'),
+                    ]
+
+                    cols = st.columns(2)
+                    for i, (icon, title, query) in enumerate(places):
+                        maps_url = (
+                            'https://www.google.com/maps/search/?api=1&query='
+                            + quote_plus(f'{query} near {lat},{lon}')
+                        )
+                        with cols[i % 2]:
+                            st.markdown(
+                                f'<div class="card"><h3>{icon} {title}</h3>'
+                                f'<p class="small">Search locations close to your current position.</p></div>',
+                                unsafe_allow_html=True
+                            )
+                            st.link_button(f'Open {title} in Google Maps', maps_url, use_container_width=True)
+
+                    st.caption('Your GPS location is used to create nearby-search links. Always verify the facility and distance before relying on it in an emergency.')
+                except (TypeError, ValueError):
+                    st.warning('Could not read the location returned by your browser. Please try the location button again.')
+            elif location.get('error'):
+                st.warning('Location permission was not granted or your location could not be detected. Please allow location access in your browser and try again.')
+            else:
+                st.info('Tap “Turn On Location” and allow location access when your browser asks.')
+        else:
+            st.info('Tap “Turn On Location” and allow location access when your browser asks.')
 elif p=='Health Chat':
     st.title('💬 Health Chatbot');st.caption('Offline rule-based guidance; not a diagnosis.');
     if not st.session_state.chat:st.session_state.chat=[('assistant','Hi! Ask me about hydration, exercise, stress, fever or cough.')]
