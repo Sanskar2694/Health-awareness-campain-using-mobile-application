@@ -1,1 +1,2 @@
-streamlit>=1.40
+streamlit
+streamlit-gps-location==1.2.2
