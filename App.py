@@ -702,7 +702,7 @@ input:disabled {
 
 def init(k,v):
     if k not in st.session_state: st.session_state[k]=v
-for k,v in {'logged_in':False,'email':'','role':'guest','page':'Home','steps':0,'steps_date':str(date.today()),'water':0,'water_date':str(date.today()),'water_goal':8,'water_interval':60,'last_water':None,'exercise':0,'sleep':0,'mood':3,'checkup':None,'score':None,'surveys':[],'camp_reports':[],'chat':[]}.items(): init(k,v)
+for k,v in {'logged_in':False,'email':'','role':'guest','page':'Home','steps':0,'steps_date':str(date.today()),'water':0,'water_date':str(date.today()),'water_goal':8,'water_interval':60,'last_water':None,'exercise':0,'sleep':0,'mood':3,'checkup':None,'score':None,'surveys':[],'daily_submissions':[],'camp_reports':[],'chat':[]}.items(): init(k,v)
 
 today=str(date.today())
 if st.session_state.steps_date!=today: st.session_state.steps=0;st.session_state.steps_date=today
@@ -770,28 +770,148 @@ if p=='Home':
             st.markdown(f'<div class="card"><h3>{ic} {t}</h3><p class="small">{desc}</p></div>',unsafe_allow_html=True)
             if st.button('Open '+t,key='home'+str(i),use_container_width=True):nav(target)
 elif p=='Dashboard':
-    st.title('📊 My Health Dashboard');ck=st.session_state.checkup or {};a,b,c,d=st.columns(4);a.metric('BMI',ck.get('bmi','—'));b.metric('Blood Pressure',ck.get('bp','—'));c.metric('Pulse',f"{ck.get('pulse','—')} bpm" if ck.get('pulse') else '—');d.metric('Steps Today',f"{st.session_state.steps:,}")
-    st.markdown('### Today');a,b,c,d=st.columns(4);a.metric('💧 Water',f"{st.session_state.water} glasses");b.metric('🏃 Exercise',f"{st.session_state.exercise} min");c.metric('😴 Sleep',f"{st.session_state.sleep} hrs");d.metric('🙂 Mood',f"{st.session_state.mood}/5")
+    st.title('📊 My Health Dashboard')
+    st.caption('Your latest submitted daily tracking response and health information.')
+
+    ck=st.session_state.checkup or {}
+    latest = st.session_state.daily_submissions[-1] if st.session_state.daily_submissions else None
+
+    st.markdown('### 📌 Latest Daily Tracking')
+    if latest:
+        a,b,c,d=st.columns(4)
+        a.metric('👟 Steps',f"{latest['steps']:,}")
+        b.metric('💧 Water',f"{latest['water']} glasses")
+        c.metric('🏃 Exercise',f"{latest['exercise']} min")
+        d.metric('😴 Sleep',f"{latest['sleep']} hrs")
+
+        a,b=st.columns(2)
+        a.metric('🙂 Mood',f"{latest['mood']}/5")
+        b.metric('📅 Submitted',latest['submitted_at'])
+
+        st.success('Your latest Daily Tracker response has been submitted successfully.')
+    else:
+        st.info('No Daily Tracker response has been submitted yet. Open Daily Tracker and press Submit Daily Tracking.')
+
+    st.markdown('### 🩺 Health Checkup')
+    a,b,c,d=st.columns(4)
+    a.metric('BMI',ck.get('bmi','—'))
+    b.metric('Blood Pressure',ck.get('bp','—'))
+    c.metric('Pulse',f"{ck.get('pulse','—')} bpm" if ck.get('pulse') else '—')
+    d.metric('Steps Today',f"{st.session_state.steps:,}")
+
+    st.markdown('### 📈 Current Tracker Values')
+    a,b,c,d=st.columns(4)
+    a.metric('💧 Water',f"{st.session_state.water} glasses")
+    b.metric('🏃 Exercise',f"{st.session_state.exercise} min")
+    c.metric('😴 Sleep',f"{st.session_state.sleep} hrs")
+    d.metric('🙂 Mood',f"{st.session_state.mood}/5")
+
+    if st.session_state.daily_submissions:
+        st.markdown('### 📝 Submitted Responses')
+        import pandas as pd
+        rows = list(reversed(st.session_state.daily_submissions))
+        st.dataframe(
+            pd.DataFrame(rows),
+            use_container_width=True,
+            hide_index=True
+        )
+
+    if st.button('➕ Add / Update Daily Tracking',type='primary',use_container_width=True):
+        nav('Daily Tracker')
 elif p=='Daily Tracker':
-    st.title('👟 Daily Health Tracker');st.caption('Daily counters reset automatically at midnight.')
-    a,b=st.columns([1.2,1]);pct=min(100,st.session_state.steps/10000*100)
+    st.title('👟 Daily Health Tracker')
+    st.caption('Update your values, then press Submit Daily Tracking to save the response to your Dashboard.')
+
+    a,b=st.columns([1.2,1])
+    pct=min(100,st.session_state.steps/10000*100)
+
     with a:
-        st.markdown(f'<div class="step-card"><div class="small">STEPS TODAY</div><div class="big-number">{st.session_state.steps:,}</div><p class="small">Goal: 10,000</p><div class="progress-wrap"><div class="progress-fill" style="width:{pct}%"></div></div><p class="small">{pct:.0f}% complete</p></div>',unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="step-card"><div class="small">STEPS TODAY</div>'
+            f'<div class="big-number">{st.session_state.steps:,}</div>'
+            f'<p class="small">Goal: 10,000</p>'
+            f'<div class="progress-wrap"><div class="progress-fill" style="width:{pct}%"></div></div>'
+            f'<p class="small">{pct:.0f}% complete</p></div>',
+            unsafe_allow_html=True
+        )
         st.info('Automatic phone steps need a browser DeviceMotion bridge. Pure Streamlit Python runs on the server and cannot directly read the phone accelerometer, so this version never shows fake sensor data.')
         x,y,z=st.columns(3)
-        if x.button('＋100 steps',use_container_width=True):st.session_state.steps+=100;st.rerun()
-        if y.button('＋500 steps',use_container_width=True):st.session_state.steps+=500;st.rerun()
-        if z.button('Reset',use_container_width=True):st.session_state.steps=0;st.rerun()
+        if x.button('＋100 steps',use_container_width=True):
+            st.session_state.steps+=100
+            st.rerun()
+        if y.button('＋500 steps',use_container_width=True):
+            st.session_state.steps+=500
+            st.rerun()
+        if z.button('Reset',use_container_width=True):
+            st.session_state.steps=0
+            st.rerun()
+
     with b:
-        wp=min(100,st.session_state.water/st.session_state.water_goal*100);st.markdown(f'<div class="water-card"><div class="small">💧 WATER INTAKE</div><div class="big-number">{st.session_state.water}</div><div class="small">glasses / {st.session_state.water_goal}</div><div class="progress-wrap"><div class="progress-fill" style="width:{wp}%"></div></div></div>',unsafe_allow_html=True)
+        wp=min(100,st.session_state.water/st.session_state.water_goal*100)
+        st.markdown(
+            f'<div class="water-card"><div class="small">💧 WATER INTAKE</div>'
+            f'<div class="big-number">{st.session_state.water}</div>'
+            f'<div class="small">glasses / {st.session_state.water_goal}</div>'
+            f'<div class="progress-wrap"><div class="progress-fill" style="width:{wp}%"></div></div></div>',
+            unsafe_allow_html=True
+        )
         x,y,z=st.columns(3)
-        if x.button('−',key='wm'):add_water(-1);st.rerun()
-        if y.button('＋1',key='wp'):add_water(1);st.rerun()
-        if z.button('＋2',key='wp2'):add_water(2);st.rerun()
-        st.session_state.water_goal=st.number_input('Daily goal (glasses)',1,20,int(st.session_state.water_goal));st.session_state.water_interval=st.number_input('Reminder interval (minutes)',15,240,int(st.session_state.water_interval),step=15)
+        if x.button('−',key='wm'):
+            add_water(-1)
+            st.rerun()
+        if y.button('＋1',key='wp'):
+            add_water(1)
+            st.rerun()
+        if z.button('＋2',key='wp2'):
+            add_water(2)
+            st.rerun()
+
+        st.session_state.water_goal=st.number_input(
+            'Daily goal (glasses)',1,20,int(st.session_state.water_goal),key='water_goal_input'
+        )
+        st.session_state.water_interval=st.number_input(
+            'Reminder interval (minutes)',15,240,int(st.session_state.water_interval),
+            step=15,key='water_interval_input'
+        )
         st.markdown(f'<div class="reminder">{reminder()}</div>',unsafe_allow_html=True)
         st.caption('The reminder is calculated from your last logged drink. For true OS/browser push notifications, add a browser notification component.')
-    a,b,c=st.columns(3);st.session_state.exercise=a.number_input('🏃 Exercise (minutes)',0,600,int(st.session_state.exercise),10);st.session_state.sleep=b.number_input('😴 Sleep (hours)',0.0,24.0,float(st.session_state.sleep),0.5);st.session_state.mood=c.slider('🙂 Mood',1,5,int(st.session_state.mood))
+
+    a,b,c=st.columns(3)
+    st.session_state.exercise=a.number_input(
+        '🏃 Exercise (minutes)',0,600,int(st.session_state.exercise),10,key='exercise_input'
+    )
+    st.session_state.sleep=b.number_input(
+        '😴 Sleep (hours)',0.0,24.0,float(st.session_state.sleep),0.5,key='sleep_input'
+    )
+    st.session_state.mood=c.slider(
+        '🙂 Mood',1,5,int(st.session_state.mood),key='mood_input'
+    )
+
+    st.divider()
+    st.markdown('### 💾 Submit Today\'s Response')
+    st.caption('Press the button below after completing your daily values. The saved response will immediately appear on the Dashboard.')
+
+    if st.button('✅ Submit Daily Tracking',type='primary',use_container_width=True):
+        submission = {
+            'date': today,
+            'steps': int(st.session_state.steps),
+            'water': int(st.session_state.water),
+            'exercise': int(st.session_state.exercise),
+            'sleep': float(st.session_state.sleep),
+            'mood': int(st.session_state.mood),
+            'submitted_at': datetime.now().strftime('%d %b %Y, %I:%M %p')
+        }
+
+        # Replace today's previous submission instead of creating duplicates.
+        st.session_state.daily_submissions = [
+            item for item in st.session_state.daily_submissions
+            if item.get('date') != today
+        ]
+        st.session_state.daily_submissions.append(submission)
+
+        st.success('✅ Daily tracking submitted successfully! Open Dashboard to view your response.')
+        st.session_state.page='Dashboard'
+        st.rerun()
 elif p=='Checkup':
     st.title('🩺 Basic Health Checkup');st.caption('General awareness only — not a diagnosis.');name=st.text_input('Name');a,b=st.columns(2);age=a.number_input('Age',1,120,25);gender=b.selectbox('Gender',['Male','Female','Other']);a,b=st.columns(2);height=a.number_input('Height (cm)',50.,250.,170.);weight=b.number_input('Weight (kg)',10.,300.,68.);a,b=st.columns(2);sys=a.number_input('Systolic BP',50,250,120);dia=b.number_input('Diastolic BP',30,150,80);sugar=st.number_input('Blood sugar (mg/dL)',20,600,95);pulse=st.number_input('Pulse (bpm)',30,220,72)
     if st.button('Get My Results',type='primary'): bmi=weight/((height/100)**2);st.session_state.checkup={'bmi':f'{bmi:.1f}','bp':f'{sys}/{dia}','pulse':pulse,'sugar':sugar};st.success('Checkup saved.');a,b,c=st.columns(3);a.metric('BMI',f'{bmi:.1f}');b.metric('BP',f'{sys}/{dia}');c.metric('Pulse',f'{pulse} bpm')
