@@ -2,11 +2,11 @@ import streamlit as st
 from datetime import datetime, date
 import math
 from urllib.parse import quote_plus
+import json
+import streamlit.components.v1 as components
 
-try:
-    from streamlit_gps_location import gps_location_button
-except ImportError:
-    gps_location_button = None
+# Browser geolocation and motion are handled with a small JavaScript bridge
+# rendered inside Streamlit. This avoids depending on streamlit-gps-location.
 
 st.set_page_config(page_title='HealthWise Connect', page_icon='🩺', layout='wide')
 
@@ -700,6 +700,136 @@ input:disabled {
 }
 </style>''', unsafe_allow_html=True)
 
+
+def browser_motion_step_counter():
+    """Render a browser-side motion step detector.
+
+    Important limitation: Streamlit reruns the Python script on every widget
+    interaction, so this bridge keeps its sensor state in the browser and
+    reports the accumulated count back to Python through a query parameter.
+    It is intentionally conservative to reduce false positives.
+    """
+    current = int(st.session_state.get("steps", 0))
+    components.html(
+        f"""
+        <div id="hw-step-box" style="font-family:Arial,sans-serif;padding:8px 0">
+          <button id="hw-motion-btn"
+            style="padding:11px 16px;border-radius:10px;border:1px solid #4D7D77;
+                   background:#075E59;color:white;font-weight:700;">
+            📱 Enable Automatic Step Detection
+          </button>
+          <span id="hw-motion-status" style="margin-left:10px;font-weight:600;">
+            Sensor not enabled
+          </span>
+        </div>
+        <script>
+        (() => {{
+          const btn = document.getElementById("hw-motion-btn");
+          const status = document.getElementById("hw-motion-status");
+          let enabled = false;
+          let lastMag = null;
+          let lastPeak = 0;
+          let localSteps = Number(localStorage.getItem("hw_steps") || "{current}");
+          let samples = [];
+
+          function save() {{
+            localStorage.setItem("hw_steps", String(localSteps));
+          }}
+
+          function motion(e) {{
+            if (!enabled) return;
+            const a = e.accelerationIncludingGravity || e.acceleration;
+            if (!a) return;
+
+            const x = Number(a.x || 0), y = Number(a.y || 0), z = Number(a.z || 0);
+            const mag = Math.sqrt(x*x + y*y + z*z);
+
+            if (lastMag === null) {{
+              lastMag = mag;
+              return;
+            }}
+
+            const delta = Math.abs(mag - lastMag);
+            lastMag = mag;
+            const now = Date.now();
+
+            // Walking normally produces repeated acceleration peaks.
+            // A short refractory period reduces double-counting.
+            samples.push(delta);
+            if (samples.length > 5) samples.shift();
+            const avg = samples.reduce((a,b) => a+b, 0) / samples.length;
+
+            if (delta > 1.15 && avg > 0.55 && now - lastPeak > 380) {{
+              localSteps += 1;
+              lastPeak = now;
+              save();
+              status.textContent = "Walking detected • " + localSteps + " steps";
+              // Trigger a lightweight Streamlit rerun by changing the URL query.
+              const u = new URL(window.parent.location.href);
+              u.searchParams.set("hw_steps", String(localSteps));
+              window.parent.history.replaceState(null, "", u.toString());
+              window.parent.dispatchEvent(new PopStateEvent("popstate"));
+            }}
+          }}
+
+          async function enable() {{
+            try {{
+              if (typeof DeviceMotionEvent !== "undefined" &&
+                  typeof DeviceMotionEvent.requestPermission === "function") {{
+                const permission = await DeviceMotionEvent.requestPermission();
+                if (permission !== "granted") {{
+                  status.textContent = "Motion permission denied";
+                  return;
+                }}
+              }}
+              window.addEventListener("devicemotion", motion, {{passive:true}});
+              enabled = true;
+              status.textContent = "Automatic step detection enabled • " + localSteps + " steps";
+              btn.textContent = "✅ Step Detection Enabled";
+            }} catch (err) {{
+              status.textContent = "Could not enable motion sensor";
+            }}
+          }}
+
+          btn.addEventListener("click", enable);
+          status.textContent = "Tap the button and allow Motion & Orientation access";
+        }})();
+        </script>
+        """,
+        height=70,
+    )
+
+def get_browser_steps():
+    """Read the latest browser-side step value if Streamlit exposes it."""
+    try:
+        qp = st.query_params
+        value = qp.get("hw_steps")
+        if isinstance(value, list):
+            value = value[0] if value else None
+        if value is not None:
+            n = max(0, int(float(value)))
+            if n >= int(st.session_state.get("steps", 0)):
+                st.session_state.steps = n
+                st.session_state.steps_date = str(date.today())
+    except Exception:
+        pass
+
+def emergency_search_links(lat, lon):
+    """Create map searches for several emergency categories."""
+    places = [
+        ("🏥", "Nearby Hospitals", "hospital"),
+        ("🚑", "Nearby Ambulance Services", "ambulance service"),
+        ("👮", "Nearby Police Stations", "police station"),
+        ("🚒", "Nearby Fire Brigades", "fire station"),
+        ("💊", "Nearby Pharmacies", "pharmacy"),
+    ]
+    return [
+        (icon, title,
+         "https://www.google.com/maps/search/?api=1&query=" +
+         quote_plus(f"{query} near {lat},{lon}"))
+        for icon, title, query in places
+    ]
+
 def init(k,v):
     if k not in st.session_state: st.session_state[k]=v
 for k,v in {'logged_in':False,'email':'','role':'guest','page':'Home','steps':0,'steps_date':str(date.today()),'water':0,'water_date':str(date.today()),'water_goal':8,'water_interval':60,'last_water':None,'exercise':0,'sleep':0,'mood':3,'checkup':None,'score':None,'surveys':[],'daily_submissions':[],'camp_reports':[],'chat':[]}.items(): init(k,v)
@@ -707,6 +837,7 @@ for k,v in {'logged_in':False,'email':'','role':'guest','page':'Home','steps':0,
 today=str(date.today())
 if st.session_state.steps_date!=today: st.session_state.steps=0;st.session_state.steps_date=today
 if st.session_state.water_date!=today: st.session_state.water=0;st.session_state.water_date=today;st.session_state.last_water=None
+get_browser_steps()
 
 def nav(p): st.session_state.page=p;st.rerun()
 def add_water(n): st.session_state.water=max(0,st.session_state.water+n);st.session_state.last_water=datetime.now()
@@ -834,7 +965,8 @@ elif p=='Daily Tracker':
             f'<p class="small">{pct:.0f}% complete</p></div>',
             unsafe_allow_html=True
         )
-        st.info('Automatic phone steps need a browser DeviceMotion bridge. Pure Streamlit Python runs on the server and cannot directly read the phone accelerometer, so this version never shows fake sensor data.')
+        st.info('For automatic counting, open the deployed app on the phone, tap Enable Automatic Step Detection, and allow Motion & Orientation access. Keep the page open while walking. Sensor support depends on the browser/device.')
+        browser_motion_step_counter()
         x,y,z=st.columns(3)
         if x.button('＋100 steps',use_container_width=True):
             st.session_state.steps+=100
@@ -844,6 +976,10 @@ elif p=='Daily Tracker':
             st.rerun()
         if z.button('Reset',use_container_width=True):
             st.session_state.steps=0
+            try:
+                st.query_params["hw_steps"]="0"
+            except Exception:
+                pass
             st.rerun()
 
     with b:
@@ -941,56 +1077,69 @@ elif p=='Emergency':
     st.write('🚑 **108 — Ambulance / emergency medical response**')
 
     st.markdown('### 📍 Find Emergency Services Near You')
-    st.write('Turn on your device location to open nearby hospitals, fire brigades, police stations and pharmacies in Google Maps.')
+    st.caption('Allow location access. The app will use your current coordinates to create nearby searches in Google Maps.')
 
-    if gps_location_button is None:
-        st.error('The GPS location package is not installed. Add `streamlit-gps-location` to requirements.txt and redeploy.')
-    else:
-        location = gps_location_button(buttonText='📍 Turn On Location')
+    # Browser geolocation bridge.
+    location_components = components.html(
+        """
+        <div style="font-family:Arial,sans-serif">
+          <button id="loc" style="padding:11px 16px;border-radius:10px;
+             border:1px solid #4D7D77;background:#075E59;color:white;font-weight:700;">
+             📍 Turn On Location
+          </button>
+          <div id="out" style="margin-top:8px;font-weight:600"></div>
+          <script>
+          document.getElementById("loc").onclick = () => {
+            const out = document.getElementById("out");
+            if (!navigator.geolocation) {
+              out.textContent = "Geolocation is not supported by this browser.";
+              return;
+            }
+            out.textContent = "Requesting location permission…";
+            navigator.geolocation.getCurrentPosition(
+              p => {
+                const lat = p.coords.latitude.toFixed(6);
+                const lon = p.coords.longitude.toFixed(6);
+                out.textContent = "Location detected: " + lat + ", " + lon;
+                const u = new URL(window.parent.location.href);
+                u.searchParams.set("hw_lat", lat);
+                u.searchParams.set("hw_lon", lon);
+                window.parent.history.replaceState(null, "", u.toString());
+                window.parent.dispatchEvent(new PopStateEvent("popstate"));
+              },
+              e => { out.textContent = "Location permission/error: " + e.message; },
+              {enableHighAccuracy:true, timeout:15000, maximumAge:60000}
+            );
+          };
+          </script>
+        </div>
+        """,
+        height=95,
+    )
 
-        if location and isinstance(location, dict):
-            # Support the common output shape of GPS location components.
-            lat = location.get('latitude', location.get('lat'))
-            lon = location.get('longitude', location.get('lon'))
-
-            if lat is not None and lon is not None:
-                try:
-                    lat = float(lat)
-                    lon = float(lon)
-
-                    st.success('📍 Location detected. Choose an emergency service below.')
-
-                    places = [
-                        ('🏥', 'Nearby Hospitals', 'hospital'),
-                        ('🚒', 'Nearby Fire Brigades', 'fire station'),
-                        ('👮', 'Nearby Police Stations', 'police station'),
-                        ('💊', 'Nearby Pharmacies', 'pharmacy'),
-                        ('🚑', 'Nearby Ambulance Services', 'ambulance service'),
-                    ]
-
-                    cols = st.columns(2)
-                    for i, (icon, title, query) in enumerate(places):
-                        maps_url = (
-                            'https://www.google.com/maps/search/?api=1&query='
-                            + quote_plus(f'{query} near {lat},{lon}')
-                        )
-                        with cols[i % 2]:
-                            st.markdown(
-                                f'<div class="card"><h3>{icon} {title}</h3>'
-                                f'<p class="small">Search locations close to your current position.</p></div>',
-                                unsafe_allow_html=True
-                            )
-                            st.link_button(f'Open {title} in Google Maps', maps_url, use_container_width=True)
-
-                    st.caption('Your GPS location is used to create nearby-search links. Always verify the facility and distance before relying on it in an emergency.')
-                except (TypeError, ValueError):
-                    st.warning('Could not read the location returned by your browser. Please try the location button again.')
-            elif location.get('error'):
-                st.warning('Location permission was not granted or your location could not be detected. Please allow location access in your browser and try again.')
-            else:
-                st.info('Tap “Turn On Location” and allow location access when your browser asks.')
+    try:
+        lat_q = st.query_params.get("hw_lat")
+        lon_q = st.query_params.get("hw_lon")
+        if isinstance(lat_q, list): lat_q = lat_q[0] if lat_q else None
+        if isinstance(lon_q, list): lon_q = lon_q[0] if lon_q else None
+        if lat_q and lon_q:
+            lat = float(lat_q)
+            lon = float(lon_q)
+            st.success(f'📍 Current location received: {lat:.5f}, {lon:.5f}')
+            st.markdown('### Nearby emergency places')
+            for i, (icon, title, url) in enumerate(emergency_search_links(lat, lon)):
+                st.markdown(
+                    f'<div class="card"><h3>{icon} {title}</h3>'
+                    f'<p class="small">Open Google Maps to see nearby names, distances, phone numbers and directions.</p></div>',
+                    unsafe_allow_html=True
+                )
+                st.link_button(f'Open {title}', url, use_container_width=True)
+            st.caption('Google Maps supplies the live facility names, addresses, ratings and available phone numbers. Always verify the facility before relying on it in an emergency.')
         else:
-            st.info('Tap “Turn On Location” and allow location access when your browser asks.')
+            st.info('Tap “Turn On Location” and allow location access when the browser asks.')
+    except (TypeError, ValueError):
+        st.warning('Could not read the location returned by your browser. Please try the location button again.')
+
 elif p=='Health Chat':
     st.title('💬 Health Chatbot');st.caption('Offline rule-based guidance; not a diagnosis.');
     if not st.session_state.chat:st.session_state.chat=[('assistant','Hi! Ask me about hydration, exercise, stress, fever or cough.')]
@@ -999,4 +1148,4 @@ elif p=='Health Chat':
     if q:
         st.session_state.chat.append(('user',q));lo=q.lower();answers={'fever':'Rest, hydrate, and monitor symptoms. Seek medical advice if severe or persistent.','cough':'Rest and drink warm fluids. Seek medical advice if severe or persistent.','dehydrat':'Drink water regularly; ORS may be useful when appropriate.','exercise':'Use regular, age-appropriate movement and increase gradually.','stress':'Try breathing breaks, regular sleep, movement, and talking to someone you trust.'};r=next((v for k,v in answers.items() if k in lo),'Try asking about hydration, exercise, stress, fever, or cough.');st.session_state.chat.append(('assistant',r));st.rerun()
 
-st.markdown('---');st.caption('HealthWise Connect • Streamlit edition • General awareness information, not medical diagnosis.')
+st.markdown('---');st.caption('HealthWise Connect • Streamlit edition • General awareness information, not medical diagnosis. Browser motion/location permissions generally require HTTPS and may not work when the app is merely embedded inside another app.')
