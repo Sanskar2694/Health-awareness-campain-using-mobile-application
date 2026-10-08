@@ -1141,64 +1141,10 @@ if not st.session_state.logged_in:
     st.caption('Demo admin: admin@health.org / admin123')
     st.stop()
 
-# Allow the Home cards to navigate without showing a separate arrow button.
-# The selected page is passed through a lightweight query parameter.
-try:
-    requested_page = st.query_params.get("hw_page")
-    if isinstance(requested_page, list):
-        requested_page = requested_page[0] if requested_page else None
-    valid_pages = {
-        'Home','Dashboard','Daily Tracker','Checkup','Lifestyle Quiz',
-        'Community Survey','Awareness Library','Health Camp','Emergency','Health Chat'
-    }
-    if requested_page in valid_pages:
-        st.session_state.page = requested_page
-        st.query_params.clear()
-except Exception:
-    pass
-
 p=st.session_state.page
 if p=='Home':
-    st.markdown('''<style>
-    /* Clickable Explore cards */
-    .home-card-link{
-        display:block;
-        text-decoration:none !important;
-        color:inherit !important;
-        margin-bottom:16px;
-    }
-    .home-card-link .home-card{
-        background:#FFFFFF;
-        border:1px solid #C4D6D2;
-        border-radius:18px;
-        padding:22px 20px;
-        min-height:112px;
-        box-shadow:0 6px 20px rgba(18,63,62,.07);
-        transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease;
-        cursor:pointer;
-    }
-    .home-card-link .home-card:hover{
-        transform:translateY(-2px);
-        border-color:#0F6B66;
-        box-shadow:0 10px 26px rgba(18,63,62,.13);
-    }
-    .home-card-link h3{
-        margin:0 0 7px 0 !important;
-        color:#083F3C !important;
-        font-family:'Fraunces',serif !important;
-        font-size:23px !important;
-    }
-    .home-card-link p{
-        margin:0 !important;
-        color:#4F6763 !important;
-        font-size:13px !important;
-        line-height:1.45 !important;
-    }
-    </style>''', unsafe_allow_html=True)
-
     st.markdown('''<div class="hero"><span class="badge">🌿 HEALTHWISE CONNECT</span><h1>Good habits. Better awareness.</h1><p>Everything from your original app, redesigned for Streamlit.</p></div>''',unsafe_allow_html=True)
     a,b,c,d=st.columns(4);a.metric('👟 Steps',f'{st.session_state.steps:,}');b.metric('💧 Water',f'{st.session_state.water}/{st.session_state.water_goal}');c.metric('🏃 Exercise',f'{st.session_state.exercise} min');d.metric('😴 Sleep',f'{st.session_state.sleep} hrs')
-
     st.markdown('### Explore')
     cols=st.columns(3)
     cards=[
@@ -1209,19 +1155,16 @@ if p=='Home':
         ('📚','Awareness Library','Health education','Awareness Library'),
         ('💬','Health Chat','Offline guidance','Health Chat')
     ]
-
     for i,(ic,t,desc,target) in enumerate(cards):
         with cols[i%3]:
-            target_q = quote_plus(target)
             st.markdown(
-                f'''<a class="home-card-link" href="?hw_page={target_q}" aria-label="Open {t}">
-                    <div class="home-card">
-                        <h3>{ic} {t}</h3>
-                        <p>{desc}</p>
-                    </div>
-                </a>''',
+                f'<div class="card"><h3>{ic} {t}</h3><p class="small">{desc}</p></div>',
                 unsafe_allow_html=True
             )
+            # Use a simple arrow action to open the selected page.
+            if st.button('→',key='home_arrow_'+str(i),use_container_width=True,
+                         help='Open '+t):
+                nav(target)
 elif p=='Dashboard':
     st.title('📊 My Health Dashboard')
     st.caption('Your latest submitted daily tracking response and health information.')
