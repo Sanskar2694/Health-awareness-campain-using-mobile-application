@@ -1,2 +1,3 @@
 streamlit
-streamlit-gps-location==1.2.2
+streamlit-gps-location
+pandas
