@@ -8,7 +8,12 @@ import streamlit.components.v1 as components
 # Browser geolocation and motion are handled with a small JavaScript bridge
 # rendered inside Streamlit. This avoids depending on streamlit-gps-location.
 
-st.set_page_config(page_title='HealthWise Connect', page_icon='🩺', layout='wide')
+st.set_page_config(
+    page_title='HealthWise Connect',
+    page_icon='🩺',
+    layout='wide',
+    initial_sidebar_state='collapsed'
+)
 
 st.markdown('''<style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap');
@@ -340,6 +345,16 @@ hr{border-color:#D4E0DD !important;}
 }
 </style>''', unsafe_allow_html=True)
 
+
+# Keep the native Streamlit header so the mobile sidebar/menu button remains available,
+# but hide footer/branding text inside the app.
+st.markdown('''<style>
+footer {visibility:hidden !important; height:0 !important;}
+[data-testid="stFooter"] {display:none !important;}
+#MainMenu {visibility:hidden !important;}
+[data-testid="stToolbar"] {visibility:hidden !important;}
+[data-testid="stDecoration"] {display:none !important;}
+</style>''', unsafe_allow_html=True)
 
 st.markdown('''<style>
 /* ===== Accessibility / High Contrast Layer ===== */
@@ -702,12 +717,10 @@ input:disabled {
 
 
 def browser_motion_step_counter():
-    """Render a browser-side motion step detector.
+    """Browser-side motion step detector.
 
-    Important limitation: Streamlit reruns the Python script on every widget
-    interaction, so this bridge keeps its sensor state in the browser and
-    reports the accumulated count back to Python through a query parameter.
-    It is intentionally conservative to reduce false positives.
+    The sensor runs in the phone browser/WebView after the user grants permission.
+    Step state is kept in localStorage so Streamlit reruns do not reset it.
     """
     current = int(st.session_state.get("steps", 0))
     components.html(
@@ -726,14 +739,37 @@ def browser_motion_step_counter():
         (() => {{
           const btn = document.getElementById("hw-motion-btn");
           const status = document.getElementById("hw-motion-status");
+          const DAY_KEY = "hw_steps_day";
+          const STEPS_KEY = "hw_steps";
+          const today = new Date().toISOString().slice(0,10);
+
+          if (localStorage.getItem(DAY_KEY) !== today) {{
+            localStorage.setItem(DAY_KEY, today);
+            localStorage.setItem(STEPS_KEY, "0");
+          }}
+
           let enabled = false;
           let lastMag = null;
           let lastPeak = 0;
-          let localSteps = Number(localStorage.getItem("hw_steps") || "{current}");
+          let localSteps = Math.max(0, Number(localStorage.getItem(STEPS_KEY) || "{current}"));
           let samples = [];
+          let lastReport = localSteps;
 
           function save() {{
-            localStorage.setItem("hw_steps", String(localSteps));
+            localStorage.setItem(DAY_KEY, today);
+            localStorage.setItem(STEPS_KEY, String(localSteps));
+          }}
+
+          function report() {{
+            if (localSteps === lastReport) return;
+            lastReport = localSteps;
+            status.textContent = "Walking detected • " + localSteps + " steps";
+            try {{
+              const u = new URL(window.parent.location.href);
+              u.searchParams.set("hw_steps", String(localSteps));
+              window.parent.history.replaceState(null, "", u.toString());
+              window.parent.dispatchEvent(new PopStateEvent("popstate"));
+            }} catch (e) {{}}
           }}
 
           function motion(e) {{
@@ -741,7 +777,9 @@ def browser_motion_step_counter():
             const a = e.accelerationIncludingGravity || e.acceleration;
             if (!a) return;
 
-            const x = Number(a.x || 0), y = Number(a.y || 0), z = Number(a.z || 0);
+            const x = Number(a.x || 0);
+            const y = Number(a.y || 0);
+            const z = Number(a.z || 0);
             const mag = Math.sqrt(x*x + y*y + z*z);
 
             if (lastMag === null) {{
@@ -753,51 +791,59 @@ def browser_motion_step_counter():
             lastMag = mag;
             const now = Date.now();
 
-            // Walking normally produces repeated acceleration peaks.
-            // A short refractory period reduces double-counting.
             samples.push(delta);
-            if (samples.length > 5) samples.shift();
+            if (samples.length > 8) samples.shift();
             const avg = samples.reduce((a,b) => a+b, 0) / samples.length;
 
-            if (delta > 1.15 && avg > 0.55 && now - lastPeak > 380) {{
+            // Conservative peak detection to reduce false steps.
+            if (delta > 1.10 && avg > 0.45 && now - lastPeak > 360) {{
               localSteps += 1;
               lastPeak = now;
               save();
-              status.textContent = "Walking detected • " + localSteps + " steps";
-              // Trigger a lightweight Streamlit rerun by changing the URL query.
-              const u = new URL(window.parent.location.href);
-              u.searchParams.set("hw_steps", String(localSteps));
-              window.parent.history.replaceState(null, "", u.toString());
-              window.parent.dispatchEvent(new PopStateEvent("popstate"));
+              report();
             }}
           }}
 
           async function enable() {{
             try {{
-              if (typeof DeviceMotionEvent !== "undefined" &&
-                  typeof DeviceMotionEvent.requestPermission === "function") {{
+              if (!window.isSecureContext) {{
+                status.textContent = "Open the app using HTTPS for motion sensors";
+                return;
+              }}
+
+              if (typeof DeviceMotionEvent === "undefined") {{
+                status.textContent = "Motion sensor is not supported on this device/browser";
+                return;
+              }}
+
+              if (typeof DeviceMotionEvent.requestPermission === "function") {{
                 const permission = await DeviceMotionEvent.requestPermission();
                 if (permission !== "granted") {{
-                  status.textContent = "Motion permission denied";
+                  status.textContent = "Motion permission denied — allow it in browser settings";
                   return;
                 }}
               }}
+
+              window.removeEventListener("devicemotion", motion);
               window.addEventListener("devicemotion", motion, {{passive:true}});
               enabled = true;
-              status.textContent = "Automatic step detection enabled • " + localSteps + " steps";
+              status.textContent = "✅ Automatic step detection enabled • " + localSteps + " steps";
               btn.textContent = "✅ Step Detection Enabled";
+              save();
+              report();
             }} catch (err) {{
-              status.textContent = "Could not enable motion sensor";
+              status.textContent = "Could not enable motion sensor: " + (err.message || "permission error");
             }}
           }}
 
           btn.addEventListener("click", enable);
-          status.textContent = "Tap the button and allow Motion & Orientation access";
+          status.textContent = "Tap once and allow Motion & Orientation access";
         }})();
         </script>
         """,
-        height=70,
+        height=72,
     )
+
 
 def get_browser_steps():
     """Read the latest browser-side step value if Streamlit exposes it."""
@@ -830,6 +876,203 @@ def emergency_search_links(lat, lon):
         for icon, title, query in places
     ]
 
+def water_reminder_component(water_count, water_goal, interval_minutes, last_water_ms):
+    """Browser notification + sound/voice hydration reminder.
+
+    Permission must be granted by a user tap. While the app page/WebView is open,
+    the browser checks the saved timer and can show a notification plus speech/beep.
+    """
+    remaining = max(0, int(water_goal) - int(water_count))
+    components.html(
+        f"""
+        <div id="hw-water-reminder" style="font-family:Arial,sans-serif;
+             border:1px solid #CDE1E8;border-radius:12px;padding:12px;background:#F7FCFD;">
+          <button id="hw-water-btn"
+            style="padding:11px 16px;border-radius:10px;border:1px solid #075E59;
+                   background:#075E59;color:white;font-weight:700;width:100%;">
+            🔔 Enable Water Reminder & Sound
+          </button>
+          <div id="hw-water-status" style="margin-top:8px;font-weight:600;color:#294744;">
+            Reminder is off
+          </div>
+          <div style="margin-top:5px;font-size:12px;color:#5B6F6B;">
+            Notifications and voice reminders work while this app page/WebView is active.
+          </div>
+        </div>
+        <script>
+        (() => {{
+          const btn = document.getElementById("hw-water-btn");
+          const status = document.getElementById("hw-water-status");
+          const intervalMs = Math.max(1, Number("{interval_minutes}")) * 60 * 1000;
+          const goal = Number("{water_goal}");
+          const water = Number("{water_count}");
+          const suppliedLast = Number("{last_water_ms}") || 0;
+          const LAST_KEY = "hw_water_last_ms";
+          const ENABLE_KEY = "hw_water_enabled";
+          const todayKey = new Date().toISOString().slice(0,10);
+          const DAY_KEY = "hw_water_day";
+
+          if (localStorage.getItem(DAY_KEY) !== todayKey) {{
+            localStorage.setItem(DAY_KEY, todayKey);
+            localStorage.removeItem(LAST_KEY);
+          }}
+
+          if (suppliedLast > 0) localStorage.setItem(LAST_KEY, String(suppliedLast));
+
+          let audioCtx = null;
+          let timer = null;
+
+          function getLast() {{
+            return Number(localStorage.getItem(LAST_KEY) || "0");
+          }}
+
+          function setStatus(msg) {{
+            status.textContent = msg;
+          }}
+
+          function unlockAudio() {{
+            try {{
+              const AC = window.AudioContext || window.webkitAudioContext;
+              if (!AC) return;
+              audioCtx = audioCtx || new AC();
+              if (audioCtx.state === "suspended") audioCtx.resume();
+              const osc = audioCtx.createOscillator();
+              const gain = audioCtx.createGain();
+              gain.gain.value = 0.0001;
+              osc.connect(gain);
+              gain.connect(audioCtx.destination);
+              osc.start();
+              osc.stop(audioCtx.currentTime + 0.03);
+            }} catch (e) {{}}
+          }}
+
+          function playBeep() {{
+            try {{
+              if (!audioCtx) unlockAudio();
+              if (!audioCtx) return;
+              const osc = audioCtx.createOscillator();
+              const gain = audioCtx.createGain();
+              osc.type = "sine";
+              osc.frequency.value = 880;
+              gain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+              gain.gain.exponentialRampToValueAtTime(0.18, audioCtx.currentTime + 0.03);
+              gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.7);
+              osc.connect(gain);
+              gain.connect(audioCtx.destination);
+              osc.start();
+              osc.stop(audioCtx.currentTime + 0.75);
+            }} catch (e) {{}}
+          }}
+
+          function speak() {{
+            try {{
+              if ("speechSynthesis" in window) {{
+                window.speechSynthesis.cancel();
+                const u = new SpeechSynthesisUtterance(
+                  "It is time to drink water. Please drink a glass of water."
+                );
+                u.rate = 0.9;
+                u.volume = 1;
+                window.speechSynthesis.speak(u);
+              }}
+            }} catch (e) {{}}
+          }}
+
+          function notify() {{
+            playBeep();
+            speak();
+            if ("Notification" in window && Notification.permission === "granted") {{
+              try {{
+                new Notification("💧 HealthWise Water Reminder", {{
+                  body: "It is time to drink water. Please drink a glass of water.",
+                  tag: "healthwise-water-reminder"
+                }});
+              }} catch (e) {{}}
+            }}
+          }}
+
+          function check() {{
+            if (water >= goal) {{
+              setStatus("🎉 Water goal complete. Reminders are paused.");
+              return;
+            }}
+
+            let last = getLast();
+            if (!last) {{
+              setStatus("⏰ Timer starts after your next logged glass of water.");
+              return;
+            }}
+
+            const elapsed = Date.now() - last;
+            const left = Math.max(0, intervalMs - elapsed);
+
+            if (elapsed >= intervalMs) {{
+              const reminderKey = "hw_water_last_alert";
+              const alerted = Number(localStorage.getItem(reminderKey) || "0");
+              // Prevent repeated alerts every few seconds until the user logs water.
+              if (Date.now() - alerted >= intervalMs) {{
+                localStorage.setItem(reminderKey, String(Date.now()));
+                notify();
+              }}
+              setStatus("🔔 Time to drink water — reminder sent.");
+            }} else {{
+              const mins = Math.ceil(left / 60000);
+              setStatus("🔔 Next water reminder in about " + mins + " min.");
+            }}
+          }}
+
+          async function enable() {{
+            unlockAudio();
+            let permission = "unsupported";
+
+            if ("Notification" in window) {{
+              try {{
+                if (Notification.permission !== "granted") {{
+                  permission = await Notification.requestPermission();
+                }} else {{
+                  permission = "granted";
+                }}
+              }} catch (e) {{
+                permission = "denied";
+              }}
+            }}
+
+            localStorage.setItem(ENABLE_KEY, "1");
+            btn.textContent = "✅ Water Reminder Enabled";
+            if (permission === "granted") {{
+              setStatus("🔔 Notifications + sound + voice enabled.");
+            }} else if (permission === "denied") {{
+              setStatus("🔊 Sound + voice enabled; browser notifications are blocked.");
+            }} else {{
+              setStatus("🔊 Sound + voice reminder enabled.");
+            }}
+
+            if (timer) clearInterval(timer);
+            check();
+            timer = setInterval(check, 5000);
+          }}
+
+          btn.addEventListener("click", enable);
+
+          // Restore the reminder after Streamlit reruns if the user already enabled it.
+          if (localStorage.getItem(ENABLE_KEY) === "1") {{
+            btn.textContent = "✅ Water Reminder Enabled";
+            if ("Notification" in window && Notification.permission === "granted") {{
+              setStatus("🔔 Notifications + sound + voice enabled.");
+            }} else {{
+              setStatus("🔊 Water reminder is enabled. Notifications may need permission.");
+            }}
+            timer = setInterval(check, 5000);
+            check();
+          }} else {{
+            setStatus("Tap the button once to allow notification and audio permissions.");
+          }}
+        }})();
+        </script>
+        """,
+        height=145,
+    )
+
 def init(k,v):
     if k not in st.session_state: st.session_state[k]=v
 for k,v in {'logged_in':False,'email':'','role':'guest','page':'Home','steps':0,'steps_date':str(date.today()),'water':0,'water_date':str(date.today()),'water_goal':8,'water_interval':60,'last_water':None,'exercise':0,'sleep':0,'mood':3,'checkup':None,'score':None,'surveys':[],'daily_submissions':[],'camp_reports':[],'chat':[]}.items(): init(k,v)
@@ -849,13 +1092,20 @@ def reminder():
     return '⏰ Hydration reminder: time for another glass.' if mins>=st.session_state.water_interval else f'💧 Next reminder in about {left} min.'
 
 with st.sidebar:
-    st.markdown('## 🩺 HealthWise');st.caption('Community health • Daily wellness');st.divider()
+    st.markdown('## 🩺 HealthWise')
+    st.caption('Community health • Daily wellness')
+    st.caption('☰ On mobile, use the upper-left menu button to open/close navigation.')
+    st.divider()
     st.write('👤 '+(st.session_state.email or 'Guest'))
     for p in ['Home','Dashboard','Daily Tracker','Checkup','Lifestyle Quiz','Community Survey','Awareness Library','Health Camp','Emergency','Health Chat']:
-        if st.button(p,use_container_width=True,key='nav_'+p): nav(p)
+        if st.button(p,use_container_width=True,key='nav_'+p):
+            nav(p)
     st.divider()
     if st.session_state.logged_in and st.button('Logout',use_container_width=True):
-        st.session_state.logged_in=False;st.session_state.role='guest';st.session_state.email='';nav('Home')
+        st.session_state.logged_in=False
+        st.session_state.role='guest'
+        st.session_state.email=''
+        nav('Home')
 
 if not st.session_state.logged_in:
     st.markdown('''<div class="hero"><span class="badge">HEALTHWISE CONNECT</span><h1 style="font-size:42px;margin-top:14px">A healthier community starts with awareness.</h1><p style="font-size:17px">Track daily habits, check basic health values, learn, and keep your wellness routine in one place.</p></div>''',unsafe_allow_html=True)
@@ -895,11 +1145,26 @@ p=st.session_state.page
 if p=='Home':
     st.markdown('''<div class="hero"><span class="badge">🌿 HEALTHWISE CONNECT</span><h1>Good habits. Better awareness.</h1><p>Everything from your original app, redesigned for Streamlit.</p></div>''',unsafe_allow_html=True)
     a,b,c,d=st.columns(4);a.metric('👟 Steps',f'{st.session_state.steps:,}');b.metric('💧 Water',f'{st.session_state.water}/{st.session_state.water_goal}');c.metric('🏃 Exercise',f'{st.session_state.exercise} min');d.metric('😴 Sleep',f'{st.session_state.sleep} hrs')
-    st.markdown('### Explore');cols=st.columns(3);cards=[('👟','Daily Tracker','Steps + water reminders','Daily Tracker'),('🩺','Basic Checkup','Vitals awareness','Checkup'),('📋','Lifestyle Quiz','Seven quick questions','Lifestyle Quiz'),('📊','Dashboard','Your wellness at a glance','Dashboard'),('📚','Awareness Library','Health education','Awareness Library'),('💬','Health Chat','Offline guidance','Health Chat')]
+    st.markdown('### Explore')
+    cols=st.columns(3)
+    cards=[
+        ('👟','Daily Tracker','Steps + water reminders','Daily Tracker'),
+        ('🩺','Basic Checkup','Vitals awareness','Checkup'),
+        ('📋','Lifestyle Quiz','Seven quick questions','Lifestyle Quiz'),
+        ('📊','Dashboard','Your wellness at a glance','Dashboard'),
+        ('📚','Awareness Library','Health education','Awareness Library'),
+        ('💬','Health Chat','Offline guidance','Health Chat')
+    ]
     for i,(ic,t,desc,target) in enumerate(cards):
         with cols[i%3]:
-            st.markdown(f'<div class="card"><h3>{ic} {t}</h3><p class="small">{desc}</p></div>',unsafe_allow_html=True)
-            if st.button('Open '+t,key='home'+str(i),use_container_width=True):nav(target)
+            st.markdown(
+                f'<div class="card"><h3>{ic} {t}</h3><p class="small">{desc}</p></div>',
+                unsafe_allow_html=True
+            )
+            # Use a simple arrow action to open the selected page.
+            if st.button('→',key='home_arrow_'+str(i),use_container_width=True,
+                         help='Open '+t):
+                nav(target)
 elif p=='Dashboard':
     st.title('📊 My Health Dashboard')
     st.caption('Your latest submitted daily tracking response and health information.')
@@ -1010,7 +1275,17 @@ elif p=='Daily Tracker':
             step=15,key='water_interval_input'
         )
         st.markdown(f'<div class="reminder">{reminder()}</div>',unsafe_allow_html=True)
-        st.caption('The reminder is calculated from your last logged drink. For true OS/browser push notifications, add a browser notification component.')
+
+        last_water_ms = (
+            int(st.session_state.last_water.timestamp() * 1000)
+            if st.session_state.last_water else 0
+        )
+        water_reminder_component(
+            int(st.session_state.water),
+            int(st.session_state.water_goal),
+            int(st.session_state.water_interval),
+            last_water_ms
+        )
 
     a,b,c=st.columns(3)
     st.session_state.exercise=a.number_input(
@@ -1148,4 +1423,4 @@ elif p=='Health Chat':
     if q:
         st.session_state.chat.append(('user',q));lo=q.lower();answers={'fever':'Rest, hydrate, and monitor symptoms. Seek medical advice if severe or persistent.','cough':'Rest and drink warm fluids. Seek medical advice if severe or persistent.','dehydrat':'Drink water regularly; ORS may be useful when appropriate.','exercise':'Use regular, age-appropriate movement and increase gradually.','stress':'Try breathing breaks, regular sleep, movement, and talking to someone you trust.'};r=next((v for k,v in answers.items() if k in lo),'Try asking about hydration, exercise, stress, fever, or cough.');st.session_state.chat.append(('assistant',r));st.rerun()
 
-st.markdown('---');st.caption('HealthWise Connect • Streamlit edition • General awareness information, not medical diagnosis. Browser motion/location permissions generally require HTTPS and may not work when the app is merely embedded inside another app.')
+st.markdown('---');st.caption('HealthWise Connect • General health awareness information, not medical diagnosis. Motion, location, notification and audio features require device/browser permission and an HTTPS app page.')
