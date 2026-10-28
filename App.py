@@ -925,77 +925,56 @@ def get_browser_steps():
         pass
 
 
-def get_ai_answer(question, history):
-    """Answer broad questions through OpenAI when an API key is configured."""
-    # Prefer a server-side Streamlit secret/environment variable. A session-only
-    # key is supported for quick testing, and is never written to the database.
-    api_key = os.environ.get("OPENAI_API_KEY", "")
-    try:
-        if not api_key:
-            api_key = str(st.secrets.get("OPENAI_API_KEY", "") or "")
-    except Exception:
-        pass
-    if not api_key:
-        api_key = str(st.session_state.get("chat_api_key", "") or "")
+def get_ai_answer(question, history=None):
+    """Free, offline health FAQ responder using authored guidance and keyword matching."""
+    q = re.sub(r"[^a-z0-9\s]", " ", str(question).lower())
+    q = re.sub(r"\s+", " ", q).strip()
 
-    if not api_key:
-        return (
-            "The AI chatbot has no API key. Open Connect the AI chatbot above and enter an OpenAI API key, "
-            "or add OPENAI_API_KEY to Streamlit Cloud → App settings → Secrets. General-purpose AI answers "
-            "cannot work without an AI service/API key."
-        )
+    # Safety-first topics are checked before general keyword matches.
+    if any(term in q for term in ["chest pain", "can t breathe", "cannot breathe", "difficulty breathing", "severe bleeding", "unconscious", "stroke symptoms"]):
+        return ("This may be a medical emergency. Call your local emergency number now (112 in India) or go to the nearest emergency department. "
+                "Do not wait for a chatbot response. If possible, ask someone nearby to help.")
+    if any(term in q for term in ["suicid", "kill myself", "self harm", "hurt myself", "end my life"]):
+        return ("I’m sorry you’re dealing with this. If you may act on these thoughts or are in immediate danger, call 112 in India or go to an emergency department now. "
+                "Move away from anything you could use to hurt yourself and contact someone you trust to stay with you. In India, you can also call Tele-MANAS at 14416 for mental-health support.")
 
-    messages = [{
-        "role": "system",
-        "content": (
-            "You are HealthWise Connect's helpful general-purpose assistant. Answer the user's "
-            "question directly across general topics including education, technology, writing, "
-            "daily life, science, and health. If a question is ambiguous, ask a concise clarifying "
-            "question. Be accurate, distinguish uncertainty from fact, and do not claim to have "
-            "performed actions you have not performed. For medical topics, provide general "
-            "information only, do not diagnose or prescribe, mention urgent red flags when relevant, "
-            "and recommend a qualified clinician for personal medical decisions. For emergencies, "
-            "tell the user to contact local emergency services. Keep answers clear and practical."
-        )
-    }]
-    # Keep recent context to make follow-up questions coherent without sending an unlimited history.
-    for item in history[-12:]:
-        if isinstance(item, (list, tuple)) and len(item) == 2:
-            role, content = item
-            if role in ("user", "assistant") and isinstance(content, str):
-                messages.append({"role": role, "content": content[:6000]})
-    messages.append({"role": "user", "content": question[:6000]})
+    topics = [
+        (("stress", "relax", "overwhelmed", "pressure", "tension"),
+         "To reduce stress, try this: 1) Breathe in gently for 4 seconds and out for 6 seconds for 1–2 minutes. 2) Relax your shoulders and unclench your jaw. 3) Take a short walk or stretch. 4) Break the problem into one small next step. 5) Keep a regular sleep schedule and talk with someone you trust. If stress is persistent or affects daily life, consider speaking with a qualified mental-health professional."),
+        (("anxious", "anxiety", "panic", "nervous"),
+         "Try grounding yourself: name 5 things you see, 4 you feel, 3 you hear, 2 you smell, and 1 you taste. Breathe slowly, reduce caffeine if it worsens symptoms, and talk to someone you trust. Repeated panic or anxiety that disrupts daily life deserves support from a healthcare professional. Chest pain or severe breathing difficulty needs urgent medical assessment."),
+        (("sleep", "insomnia", "cant sleep", "cannot sleep", "sleeping"),
+         "Keep a consistent wake-up time, get daylight in the morning, avoid caffeine late in the day, and reduce bright screens before bed. Use the bed mainly for sleep and try a quiet wind-down routine. If sleep problems continue for several weeks or affect daily functioning, consult a healthcare professional."),
+        (("fever", "high temperature", "temperature"),
+         "Rest, drink fluids regularly, and monitor your temperature and symptoms. Seek medical advice if the fever is persistent, worsening, or accompanied by a rash, dehydration, confusion, severe headache, stiff neck, or breathing difficulty. Seek urgent care for severe symptoms. This advice does not identify the cause of a fever."),
+        (("cough", "cold", "sore throat", "runny nose", "blocked nose"),
+         "Rest and drink fluids. Warm drinks may soothe a throat; honey may help a cough for people older than 1 year. Avoid smoke and other irritants. Seek medical advice for symptoms that worsen, last longer than expected, or occur with high/persistent fever. Get urgent help for breathing difficulty or chest pain."),
+        (("water", "hydration", "dehydrat", "drink water"),
+         "Drink water regularly through the day, and more when you sweat or exercise. Thirst and pale-yellow urine can be useful rough guides, though needs vary with weather, activity, and health conditions. If you have been told to limit fluids because of a medical condition, follow your clinician’s advice."),
+        (("headache", "migraine", "head pain"),
+         "Rest in a quiet place, drink water, eat if you have missed a meal, and take a break from bright screens. Seek urgent care for a sudden, extremely severe headache or one with weakness, confusion, fainting, fever with a stiff neck, or after a significant head injury. Recurrent headaches should be discussed with a clinician."),
+        (("diet", "healthy food", "nutrition", "what should i eat", "balanced meal"),
+         "Aim for varied meals with vegetables or fruit, a protein source such as beans, eggs, fish, dairy or tofu, and whole grains or other high-fibre foods. Drink water and limit frequent highly processed snacks. Needs differ by age, activity, culture, budget, and medical conditions; avoid extreme diets."),
+        (("weight loss", "lose weight", "fat loss", "reduce belly fat"),
+         "Focus on sustainable habits: regular balanced meals, fibre-rich foods, enough sleep, and activity you can maintain. Combine walking or other aerobic activity with strength exercises as appropriate. Avoid crash diets, laxatives, or unverified weight-loss supplements. A clinician or registered dietitian can help tailor a safe plan."),
+        (("exercise", "workout", "fitness", "physical activity", "gym"),
+         "Start at a level that feels manageable and increase gradually. Walking, cycling, dancing, or other aerobic activity can support health; strength and balance exercises are also useful. Warm up, drink water, and rest when needed. Stop and seek urgent help for chest pain, fainting, or severe breathlessness."),
+        (("stomach pain", "stomach ache", "abdominal pain", "vomiting", "diarrhea", "diarrhoea"),
+         "Take small sips of fluid; oral rehydration solution can help replace fluids lost through vomiting or diarrhoea. Eat lightly as tolerated. Seek urgent care for severe or worsening abdominal pain, blood in vomit or stool, fainting, confusion, or signs of significant dehydration. Persistent symptoms need medical advice."),
+        (("mental health", "feeling sad", "depressed", "lonely", "low mood"),
+         "Try keeping a simple routine, getting daylight, moving a little, and contacting someone supportive. You do not have to manage everything alone. If low mood lasts around two weeks, affects daily activities, or gets worse, speak with a mental-health professional or doctor. If you feel unsafe, seek immediate help."),
+        (("blood pressure", "bp", "hypertension"),
+         "Blood pressure can only be assessed reliably with a properly taken measurement, often repeated over time. Sit quietly for 5 minutes, keep your feet flat and arm supported, and use a correctly sized cuff. Do not change prescribed medicines based on chatbot advice. Very high readings with chest pain, breathing difficulty, weakness, or confusion need emergency care."),
+        (("first aid", "burn", "cut", "wound"),
+         "For a minor burn, cool it under cool running water for 20 minutes; do not use ice, butter, or toothpaste. For a minor cut, apply steady pressure with clean material and rinse with clean water. Get urgent care for deep wounds, uncontrolled bleeding, large or serious burns, or signs of infection."),
+    ]
+    for keywords, answer in topics:
+        if any(term in q for term in keywords):
+            return answer
 
-    body = json.dumps({
-        "model": os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
-        "messages": messages,
-        "temperature": 0.4,
-        "max_tokens": 900
-    }).encode("utf-8")
-    request = urllib.request.Request(
-        "https://api.openai.com/v1/chat/completions",
-        data=body,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        },
-        method="POST"
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=35) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-        answer = payload["choices"][0]["message"]["content"].strip()
-        return answer or "I couldn't generate an answer for that question. Please try rephrasing it."
-    except urllib.error.HTTPError as exc:
-        if exc.code in (401, 403):
-            return "The AI API key was rejected. Check OPENAI_API_KEY in Streamlit Cloud Secrets."
-        if exc.code == 429:
-            return "The AI service has reached a usage or rate limit. Check your API billing/limits and try again."
-        return f"The AI service returned an HTTP {exc.code} error. Please try again later."
-    except (urllib.error.URLError, TimeoutError):
-        return "I couldn't reach the AI service right now. Check the app's internet connection and try again."
-    except (KeyError, IndexError, TypeError, json.JSONDecodeError):
-        return "The AI service returned an unexpected response. Please try again."
+    return ("I can give free, built-in guidance on stress, anxiety, sleep, fever, cough/cold, hydration, headaches, nutrition, weight management, exercise, stomach upset, mental wellbeing, blood pressure, and basic first aid. "
+            "Try asking a specific question, such as: How can I release stress? or How can I sleep better? "
+            "I’m an offline FAQ assistant, so I may not understand every question and I can’t diagnose conditions. For personal medical concerns, contact a qualified healthcare professional.")
 
 
 def emergency_search_links(lat, lon):
@@ -1363,58 +1342,44 @@ elif p=='Emergency':
         st.warning('Could not read the location returned by your browser. Please try the location button again.')
 
 elif p == 'Health Chat':
-    st.title('💬 HealthWise AI Chat')
-    st.caption('Ask general questions about education, technology, daily life, science, writing, or health.')
+    st.title('💬 HealthWise Health Chat')
+    st.caption('Free offline health guidance. No API key or paid AI service required.')
+    st.info('Ask in your own words. The chatbot matches your question to built-in health topics. It is not a doctor and cannot diagnose conditions.')
 
-    # A server-side secret is preferred. This optional session-only field helps
-    # testing when Streamlit Cloud Secrets have not been configured yet.
-    configured_key = os.environ.get("OPENAI_API_KEY", "")
-    try:
-        configured_key = configured_key or str(st.secrets.get("OPENAI_API_KEY", "") or "")
-    except Exception:
-        pass
-    if not configured_key and not st.session_state.get("chat_api_key"):
-        with st.expander('Connect the AI chatbot', expanded=True):
-            st.warning('The chatbot needs an OpenAI API key to answer general questions. A ChatGPT subscription does not automatically include API usage.')
-            with st.form('chat_api_key_form'):
-                entered_api_key = st.text_input('OpenAI API key', type='password', help='Used only for this browser session. It is not saved to your account database or GitHub.')
-                save_key = st.form_submit_button('Connect chatbot', type='primary')
-            if save_key:
-                if entered_api_key.strip().startswith('sk-'):
-                    st.session_state['chat_api_key'] = entered_api_key.strip()
-                    st.success('Key added for this session. Ask a question below.')
-                    st.rerun()
-                else:
-                    st.error('Enter a valid-looking OpenAI API key. The key is not verified until you send a question.')
-    elif not configured_key and st.session_state.get("chat_api_key"):
-        if st.button('Clear session API key', key='clear_chat_api_key'):
-            st.session_state.pop('chat_api_key', None)
-            st.rerun()
+    with st.expander('Example questions you can ask', expanded=True):
+        examples = [
+            'How can I release stress?',
+            'What should I do if I cannot sleep?',
+            'How can I stay hydrated?',
+            'What can help with a cough?',
+            'How do I start exercising safely?',
+            'What should I eat for a balanced diet?',
+            'How can I manage anxiety?',
+            'What should I do for a minor burn?'
+        ]
+        cols = st.columns(2)
+        for i, example in enumerate(examples):
+            if cols[i % 2].button(example, key=f'health_example_{i}', use_container_width=True):
+                st.session_state['health_chat_suggested_question'] = example
+                st.rerun()
 
     if not st.session_state.chat:
-        st.session_state.chat = [
-            ('assistant', 'Hi! I can answer questions across many topics. What would you like to know?')
-        ]
+        st.session_state.chat = [('assistant', 'Hi! Ask a health or wellness question in your own words. I can provide basic guidance on stress, sleep, hydration, exercise, common symptoms, nutrition, and first aid.')]
 
     for who, msg in st.session_state.chat:
         with st.chat_message(who):
             st.markdown(msg)
 
-    question = st.chat_input('Ask any question...')
+    suggested = st.session_state.pop('health_chat_suggested_question', '')
+    question = suggested or st.chat_input('Type your health question...')
     if question:
-        # Render and retain the question before requesting an answer.
         st.session_state.chat.append(('user', question))
         with st.chat_message('user'):
             st.markdown(question)
-
-        with st.chat_message('assistant'):
-            with st.spinner('Thinking...'):
-                # Send previous turns only; get_ai_answer appends the current question itself.
-                previous_history = st.session_state.chat[:-1]
-                answer = get_ai_answer(question, previous_history)
-                st.markdown(answer)
-
+        answer = get_ai_answer(question, st.session_state.chat[:-1])
         st.session_state.chat.append(('assistant', answer))
+        with st.chat_message('assistant'):
+            st.markdown(answer)
         st.rerun()
 
 
