@@ -927,18 +927,22 @@ def get_browser_steps():
 
 def get_ai_answer(question, history):
     """Answer broad questions through OpenAI when an API key is configured."""
+    # Prefer a server-side Streamlit secret/environment variable. A session-only
+    # key is supported for quick testing, and is never written to the database.
     api_key = os.environ.get("OPENAI_API_KEY", "")
     try:
         if not api_key:
-            api_key = st.secrets.get("OPENAI_API_KEY", "")
+            api_key = str(st.secrets.get("OPENAI_API_KEY", "") or "")
     except Exception:
-        api_key = api_key or ""
+        pass
+    if not api_key:
+        api_key = str(st.session_state.get("chat_api_key", "") or "")
 
     if not api_key:
         return (
-            "The AI chatbot is not connected yet. To enable answers to general questions, "
-            "add an OPENAI_API_KEY in Streamlit Cloud → App settings → Secrets, then restart "
-            "the app. Without an AI API key, this app cannot reliably answer arbitrary questions."
+            "The AI chatbot has no API key. Open Connect the AI chatbot above and enter an OpenAI API key, "
+            "or add OPENAI_API_KEY to Streamlit Cloud → App settings → Secrets. General-purpose AI answers "
+            "cannot work without an AI service/API key."
         )
 
     messages = [{
@@ -1360,7 +1364,32 @@ elif p=='Emergency':
 
 elif p == 'Health Chat':
     st.title('💬 HealthWise AI Chat')
-    st.caption('Ask general questions about education, technology, daily life, science, writing, or health. AI answers require an API key configured in Streamlit Cloud Secrets.')
+    st.caption('Ask general questions about education, technology, daily life, science, writing, or health.')
+
+    # A server-side secret is preferred. This optional session-only field helps
+    # testing when Streamlit Cloud Secrets have not been configured yet.
+    configured_key = os.environ.get("OPENAI_API_KEY", "")
+    try:
+        configured_key = configured_key or str(st.secrets.get("OPENAI_API_KEY", "") or "")
+    except Exception:
+        pass
+    if not configured_key and not st.session_state.get("chat_api_key"):
+        with st.expander('Connect the AI chatbot', expanded=True):
+            st.warning('The chatbot needs an OpenAI API key to answer general questions. A ChatGPT subscription does not automatically include API usage.')
+            with st.form('chat_api_key_form'):
+                entered_api_key = st.text_input('OpenAI API key', type='password', help='Used only for this browser session. It is not saved to your account database or GitHub.')
+                save_key = st.form_submit_button('Connect chatbot', type='primary')
+            if save_key:
+                if entered_api_key.strip().startswith('sk-'):
+                    st.session_state['chat_api_key'] = entered_api_key.strip()
+                    st.success('Key added for this session. Ask a question below.')
+                    st.rerun()
+                else:
+                    st.error('Enter a valid-looking OpenAI API key. The key is not verified until you send a question.')
+    elif not configured_key and st.session_state.get("chat_api_key"):
+        if st.button('Clear session API key', key='clear_chat_api_key'):
+            st.session_state.pop('chat_api_key', None)
+            st.rerun()
 
     if not st.session_state.chat:
         st.session_state.chat = [
