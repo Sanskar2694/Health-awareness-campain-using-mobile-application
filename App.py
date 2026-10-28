@@ -14,6 +14,8 @@ import sqlite3
 import hashlib
 import secrets
 import re
+import urllib.request
+import urllib.error
 
 DB_PATH = os.environ.get("HEALTHWISE_DB_PATH", "healthwise_data.db")
 SUPERADMIN_ID = "Sanskar2007"
@@ -922,14 +924,86 @@ def get_browser_steps():
     except Exception:
         pass
 
+
+def get_ai_answer(question, history):
+    """Answer broad questions through OpenAI when an API key is configured."""
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    try:
+        if not api_key:
+            api_key = st.secrets.get("OPENAI_API_KEY", "")
+    except Exception:
+        api_key = api_key or ""
+
+    if not api_key:
+        return (
+            "The AI chatbot is not connected yet. To enable answers to general questions, "
+            "add an OPENAI_API_KEY in Streamlit Cloud → App settings → Secrets, then restart "
+            "the app. Without an AI API key, this app cannot reliably answer arbitrary questions."
+        )
+
+    messages = [{
+        "role": "system",
+        "content": (
+            "You are HealthWise Connect's helpful general-purpose assistant. Answer the user's "
+            "question directly across general topics including education, technology, writing, "
+            "daily life, science, and health. If a question is ambiguous, ask a concise clarifying "
+            "question. Be accurate, distinguish uncertainty from fact, and do not claim to have "
+            "performed actions you have not performed. For medical topics, provide general "
+            "information only, do not diagnose or prescribe, mention urgent red flags when relevant, "
+            "and recommend a qualified clinician for personal medical decisions. For emergencies, "
+            "tell the user to contact local emergency services. Keep answers clear and practical."
+        )
+    }]
+    # Keep recent context to make follow-up questions coherent without sending an unlimited history.
+    for item in history[-12:]:
+        if isinstance(item, (list, tuple)) and len(item) == 2:
+            role, content = item
+            if role in ("user", "assistant") and isinstance(content, str):
+                messages.append({"role": role, "content": content[:6000]})
+    messages.append({"role": "user", "content": question[:6000]})
+
+    body = json.dumps({
+        "model": os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+        "messages": messages,
+        "temperature": 0.4,
+        "max_tokens": 900
+    }).encode("utf-8")
+    request = urllib.request.Request(
+        "https://api.openai.com/v1/chat/completions",
+        data=body,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        },
+        method="POST"
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=35) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        answer = payload["choices"][0]["message"]["content"].strip()
+        return answer or "I couldn't generate an answer for that question. Please try rephrasing it."
+    except urllib.error.HTTPError as exc:
+        if exc.code in (401, 403):
+            return "The AI API key was rejected. Check OPENAI_API_KEY in Streamlit Cloud Secrets."
+        if exc.code == 429:
+            return "The AI service has reached a usage or rate limit. Check your API billing/limits and try again."
+        return f"The AI service returned an HTTP {exc.code} error. Please try again later."
+    except (urllib.error.URLError, TimeoutError):
+        return "I couldn't reach the AI service right now. Check the app's internet connection and try again."
+    except (KeyError, IndexError, TypeError, json.JSONDecodeError):
+        return "The AI service returned an unexpected response. Please try again."
+
+
 def emergency_search_links(lat, lon):
     """Create map searches for several emergency categories."""
     places = [
         ("🏥", "Nearby Hospitals", "hospital"),
         ("🚑", "Nearby Ambulance Services", "ambulance service"),
         ("👮", "Nearby Police Stations", "police station"),
-        ("🚒", "Nearby Fire Brigades", "fire station"),
+        ("🚒", "Nearby Fire Stations", "fire station"),
         ("💊", "Nearby Pharmacies", "pharmacy"),
+        ("🏋️", "Nearby Exercise Centres", "gym fitness centre"),
+        ("🏃", "Nearby Parks & Walking Tracks", "park walking track"),
     ]
     return [
         (icon, title,
@@ -1221,7 +1295,7 @@ elif p=='Emergency':
     st.write('🚑 **108 — Ambulance / emergency medical response**')
 
     st.markdown('### 📍 Find Emergency Services Near You')
-    st.caption('Allow location access. The app will use your current coordinates to create nearby searches in Google Maps.')
+    st.caption('Allow location access. The app uses your current coordinates to create Google Maps searches for nearby hospitals, ambulance services, fire stations, pharmacies, exercise centres, gyms, and walking areas.')
 
     # Browser geolocation bridge.
     location_components = components.html(
@@ -1270,7 +1344,7 @@ elif p=='Emergency':
             lat = float(lat_q)
             lon = float(lon_q)
             st.success(f'📍 Current location received: {lat:.5f}, {lon:.5f}')
-            st.markdown('### Nearby emergency places')
+            st.markdown('### Nearby hospitals, emergency services & exercise centres')
             for i, (icon, title, url) in enumerate(emergency_search_links(lat, lon)):
                 st.markdown(
                     f'<div class="card"><h3>{icon} {title}</h3>'
@@ -1284,13 +1358,35 @@ elif p=='Emergency':
     except (TypeError, ValueError):
         st.warning('Could not read the location returned by your browser. Please try the location button again.')
 
-elif p=='Health Chat':
-    st.title('💬 Health Chatbot');st.caption('Offline rule-based guidance; not a diagnosis.');
-    if not st.session_state.chat:st.session_state.chat=[('assistant','Hi! Ask me about hydration, exercise, stress, fever or cough.')]
-    for who,msg in st.session_state.chat:st.chat_message(who).write(msg)
-    q=st.chat_input('Ask a health question...')
-    if q:
-        st.session_state.chat.append(('user',q));lo=q.lower();answers={'fever':'Rest, hydrate, and monitor symptoms. Seek medical advice if severe or persistent.','cough':'Rest and drink warm fluids. Seek medical advice if severe or persistent.','dehydrat':'Drink water regularly; ORS may be useful when appropriate.','exercise':'Use regular, age-appropriate movement and increase gradually.','stress':'Try breathing breaks, regular sleep, movement, and talking to someone you trust.'};r=next((v for k,v in answers.items() if k in lo),'Try asking about hydration, exercise, stress, fever, or cough.');st.session_state.chat.append(('assistant',r));st.rerun()
+elif p == 'Health Chat':
+    st.title('💬 HealthWise AI Chat')
+    st.caption('Ask general questions about education, technology, daily life, science, writing, or health. AI answers require an API key configured in Streamlit Cloud Secrets.')
+
+    if not st.session_state.chat:
+        st.session_state.chat = [
+            ('assistant', 'Hi! I can answer questions across many topics. What would you like to know?')
+        ]
+
+    for who, msg in st.session_state.chat:
+        with st.chat_message(who):
+            st.markdown(msg)
+
+    question = st.chat_input('Ask any question...')
+    if question:
+        # Render and retain the question before requesting an answer.
+        st.session_state.chat.append(('user', question))
+        with st.chat_message('user'):
+            st.markdown(question)
+
+        with st.chat_message('assistant'):
+            with st.spinner('Thinking...'):
+                # Send previous turns only; get_ai_answer appends the current question itself.
+                previous_history = st.session_state.chat[:-1]
+                answer = get_ai_answer(question, previous_history)
+                st.markdown(answer)
+
+        st.session_state.chat.append(('assistant', answer))
+        st.rerun()
 
 
 elif p == 'Admin Panel':
