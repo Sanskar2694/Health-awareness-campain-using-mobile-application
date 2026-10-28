@@ -1,6 +1,114 @@
 import streamlit as st
 from datetime import datetime, date
-import mathimport streamlit as st
+import mathimport streamlit as st    st.caption('Allow location access. The app will use your current coordinates to create nearby searches in Google Maps.')
+
+    # Browser geolocation bridge.
+    location_components = components.html(
+        """
+        <div style="font-family:Arial,sans-serif">
+          <button id="loc" style="padding:11px 16px;border-radius:10px;
+             border:1px solid #4D7D77;background:#075E59;color:white;font-weight:700;">
+             📍 Turn On Location
+          </button>
+          <div id="out" style="margin-top:8px;font-weight:600"></div>
+          <script>
+          document.getElementById("loc").onclick = () => {
+            const out = document.getElementById("out");
+            if (!navigator.geolocation) {
+              out.textContent = "Geolocation is not supported by this browser.";
+              return;
+            }
+            out.textContent = "Requesting location permission…";
+            navigator.geolocation.getCurrentPosition(
+              p => {
+                const lat = p.coords.latitude.toFixed(6);
+                const lon = p.coords.longitude.toFixed(6);
+                out.textContent = "Location detected: " + lat + ", " + lon;
+                const u = new URL(window.parent.location.href);
+                u.searchParams.set("hw_lat", lat);
+                u.searchParams.set("hw_lon", lon);
+                window.parent.history.replaceState(null, "", u.toString());
+                window.parent.dispatchEvent(new PopStateEvent("popstate"));
+              },
+              e => { out.textContent = "Location permission/error: " + e.message; },
+              {enableHighAccuracy:true, timeout:15000, maximumAge:60000}
+            );
+          };
+          </script>
+        </div>
+        """,
+        height=95,
+    )
+
+    try:
+        lat_q = st.query_params.get("hw_lat")
+        lon_q = st.query_params.get("hw_lon")
+        if isinstance(lat_q, list): lat_q = lat_q[0] if lat_q else None
+        if isinstance(lon_q, list): lon_q = lon_q[0] if lon_q else None
+        if lat_q and lon_q:
+            lat = float(lat_q)
+            lon = float(lon_q)
+            st.success(f'📍 Current location received: {lat:.5f}, {lon:.5f}')
+            st.markdown('### Nearby emergency places')
+            for i, (icon, title, url) in enumerate(emergency_search_links(lat, lon)):
+                st.markdown(
+                    f'<div class="card"><h3>{icon} {title}</h3>'
+                    f'<p class="small">Open Google Maps to see nearby names, distances, phone numbers and directions.</p></div>',
+                    unsafe_allow_html=True
+                )
+                st.link_button(f'Open {title}', url, use_container_width=True)
+            st.caption('Google Maps supplies the live facility names, addresses, ratings and available phone numbers. Always verify the facility before relying on it in an emergency.')
+        else:
+            st.info('Tap “Turn On Location” and allow location access when the browser asks.')
+    except (TypeError, ValueError):
+        st.warning('Could not read the location returned by your browser. Please try the location button again.')
+
+elif p=='Health Chat':
+    st.title('💬 Health Chatbot');st.caption('Offline rule-based guidance; not a diagnosis.');
+    if not st.session_state.chat:st.session_state.chat=[('assistant','Hi! Ask me about hydration, exercise, stress, fever or cough.')]
+    for who,msg in st.session_state.chat:st.chat_message(who).write(msg)
+    q=st.chat_input('Ask a health question...')
+    if q:
+        st.session_state.chat.append(('user',q));lo=q.lower();answers={'fever':'Rest, hydrate, and monitor symptoms. Seek medical advice if severe or persistent.','cough':'Rest and drink warm fluids. Seek medical advice if severe or persistent.','dehydrat':'Drink water regularly; ORS may be useful when appropriate.','exercise':'Use regular, age-appropriate movement and increase gradually.','stress':'Try breathing breaks, regular sleep, movement, and talking to someone you trust.'};r=next((v for k,v in answers.items() if k in lo),'Try asking about hydration, exercise, stress, fever, or cough.');st.session_state.chat.append(('assistant',r));st.rerun()
+
+
+elif p == 'Admin Panel':
+    if st.session_state.role not in ("admin", "superadmin"):
+        st.error("You do not have permission to access this page.")
+        st.stop()
+    st.title("🔐 Admin Panel")
+    st.caption("Admin account management and stored account overview.")
+    if st.session_state.role == "superadmin":
+        st.markdown("### Create an administrator")
+        with st.form("create_admin_form", clear_on_submit=True):
+            new_admin = st.text_input("New admin username")
+            new_password = st.text_input("Temporary password (minimum 8 characters)", type="password")
+            confirm_password = st.text_input("Confirm password", type="password")
+            submitted = st.form_submit_button("Create Admin Account", type="primary")
+        if submitted:
+            if new_password != confirm_password:
+                st.error("Passwords do not match.")
+            else:
+                ok, message = create_admin_account(new_admin, new_password)
+                (st.success if ok else st.error)(message)
+        st.markdown("### Admin accounts")
+        with db_connect() as conn:
+            admins = conn.execute("SELECT username, role, created_at FROM accounts WHERE role IN ('admin','superadmin') ORDER BY role, username").fetchall()
+        st.dataframe([dict(row) for row in admins], use_container_width=True, hide_index=True)
+        st.markdown("### Stored user data")
+        with db_connect() as conn:
+            stored = conn.execute("SELECT username, updated_at FROM user_data ORDER BY updated_at DESC").fetchall()
+        st.dataframe([dict(row) for row in stored], use_container_width=True, hide_index=True)
+        st.caption("Health details are not displayed in this account list. Access to health records should be limited to a documented purpose and user consent.")
+    else:
+        st.info("Only the primary administrator can create additional administrator accounts.")
+
+st.markdown('---');st.caption('HealthWise Connect • Streamlit edition • General awareness information, not medical diagnosis. Browser motion/location permissions generally require HTTPS and may not work when the app is merely embedded inside another app.')
+
+# Persist account data after page rendering so it survives logout and later logins.
+if st.session_state.get('logged_in') and st.session_state.get('email') and st.session_state.get('email') != 'Guest':
+    save_user_data(st.session_state.email)
+
 from datetime import datetime, date
 import math
 from urllib.parse import quote_plusimport streamlit as st
