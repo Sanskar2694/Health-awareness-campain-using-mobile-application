@@ -1,1 +1,1 @@
-# Health-awareness-campain-using-mobile-application
+streamlit>=1.32.0
