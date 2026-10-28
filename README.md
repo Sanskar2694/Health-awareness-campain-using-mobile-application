@@ -1,1 +1,3 @@
-streamlit>=1.32.0
+HealthWise Connect 🩺
+
+HealthWise Connect is a community health awareness
